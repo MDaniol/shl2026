@@ -1,0 +1,9 @@
+name: train_all_locations
+# Train split uses user 1, four locations. Test will exclude `hand`.
+split: train
+locations: [Bag, Hips, Torso, Hand]
+sampling_rate_hz: 100
+window_samples: 500   # 5 s at 100 Hz
+channels: [Acc_x, Acc_y, Acc_z, Gyr_x, Gyr_y, Gyr_z, Magn_x, Magn_y, Magn_z]
+n_frames_per_file: 196072
+n_classes: 8

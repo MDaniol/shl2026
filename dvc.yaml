@@ -1,0 +1,75 @@
+# DVC pipeline DAG.
+#
+# Each stage is content-addressed: its cache key is a function of its `deps`,
+# `params`, and `cmd`. Edit `params.yaml` to bust caches deliberately.
+#
+# All commands are placeholders for now (`echo`); they will be replaced with
+# real CLI calls as the modelling code lands.
+
+stages:
+  verify_raw:
+    cmd: >-
+      python scripts/verify_data.py --manifest
+      ${oc.env:SHL_RAW_DATA,/tmp/shl2026/data/raw}/MANIFEST.sha256
+      || echo "[scaffold] verify_data.py not yet implemented"
+    always_changed: true   # hashing IO is cheap; we want it on every run
+    desc: "Re-hash raw SHL files and compare to MANIFEST.sha256."
+
+  window_features:
+    cmd: echo "[scaffold] python -m shl2026 window --config-name=default"
+    deps:
+      - src/shl2026/data
+      - src/shl2026/features
+    params:
+      - features
+      - seed
+    outs:
+      - data/processed/features.touchstone   # placeholder marker
+    desc: "Window + normalise raw sensor files into Parquet shards."
+
+  frozen_embeddings:
+    cmd: echo "[scaffold] python -m shl2026 embed --config-name=default"
+    deps:
+      - src/shl2026/foundation
+      - data/processed/features.touchstone
+    params:
+      - foundation
+      - features.window_samples
+    outs:
+      - data/processed/embeddings.touchstone
+    desc: "Run the frozen FM over windows; cache pooled embeddings."
+
+  train_head:
+    cmd: echo "[scaffold] python -m shl2026 train-head --config-name=default"
+    deps:
+      - src/shl2026/heads
+      - data/processed/embeddings.touchstone
+    params:
+      - head
+      - train
+      - seed
+    outs:
+      - data/processed/head.touchstone
+    metrics:
+      - data/processed/metrics.json:
+          cache: false
+    desc: "Train the lightweight head on cached embeddings."
+
+  predict_test:
+    cmd: echo "[scaffold] python -m shl2026 predict --config-name=default"
+    deps:
+      - src/shl2026/heads
+      - data/processed/embeddings.touchstone
+      - data/processed/head.touchstone
+    outs:
+      - data/processed/test_predictions.touchstone
+    desc: "Apply the trained head to test embeddings (Bag/Hips/Torso only)."
+
+  format_submission:
+    cmd: echo "[scaffold] python -m shl2026 format-submission ..."
+    deps:
+      - src/shl2026/submission
+      - data/processed/test_predictions.touchstone
+    outs:
+      - submission/teamName_predictions.txt
+    desc: "Emit the 92726 x 500 plain-text matrix and run the strict validator."

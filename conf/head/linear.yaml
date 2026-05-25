@@ -1,0 +1,4 @@
+name: linear
+type: linear_probe
+# Single linear layer on top of pooled FM embeddings.
+weight_decay: 0.0

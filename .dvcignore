@@ -1,0 +1,5 @@
+# Tell DVC to ignore non-data files inside tracked directories.
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store

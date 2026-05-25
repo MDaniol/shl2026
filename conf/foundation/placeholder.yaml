@@ -1,0 +1,9 @@
+# Placeholder until concrete FM adapters are implemented. The values here
+# correspond to fields the embedding stage will read; concrete adapters
+# (e.g. moment.yaml, chronos.yaml) will override them.
+name: placeholder
+hf_repo: null
+hf_revision: null
+input_kind: null      # one of: timeseries | text | image-spectrogram
+pooling: mean
+embedding_dim: null

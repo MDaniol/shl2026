@@ -1,0 +1,8 @@
+name: validation
+split: validation
+locations: [Bag, Hips, Torso, Hand]
+sampling_rate_hz: 100
+window_samples: 500
+channels: [Acc_x, Acc_y, Acc_z, Gyr_x, Gyr_y, Gyr_z, Magn_x, Magn_y, Magn_z]
+n_frames_per_file: 28789
+n_classes: 8

@@ -1,0 +1,5 @@
+name: mlp
+type: mlp
+hidden_dims: [512, 256]
+dropout: 0.1
+weight_decay: 1.0e-4

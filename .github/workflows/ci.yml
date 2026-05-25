@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.20"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Sync deps (CPU only)
+        run: |
+          uv venv
+          uv pip install -e ".[dev]"
+
+      - name: ruff (lint + format check)
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: mypy
+        run: uv run mypy src
+
+      - name: pytest (CPU smoke)
+        run: uv run pytest -q
+
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: containers/Dockerfile
+          ignore: DL3008,DL3013   # pinning via uv lockfile, not apt

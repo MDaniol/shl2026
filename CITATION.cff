@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "SHL 2026 — AGH submission pipeline"
+abstract: >-
+  Reproducible pipeline for the Sussex–Huawei Locomotion Challenge 2026
+  (HASCA @ UbiComp 2026), using frozen foundation models with lightweight
+  trainable heads for user-independent transportation-mode recognition.
+type: software
+authors:
+  - family-names: Daniol
+    given-names: Mateusz
+    affiliation: "AGH University of Science and Technology, Kraków, Poland"
+    email: mateuszdaniol@gmail.com
+repository-code: "https://github.com/REPLACE_ME/shl2026"
+license: MIT
+version: "0.0.0-scaffold"
+date-released: "2026-05-25"
+keywords:
+  - human activity recognition
+  - transportation mode recognition
+  - foundation models
+  - wearable sensors
+  - SHL dataset
+  - reproducible research
+references:
+  - type: data
+    title: "Sussex–Huawei Locomotion (SHL) dataset"
+    url: "http://www.shl-dataset.org/"

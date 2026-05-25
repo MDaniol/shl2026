@@ -1,0 +1,24 @@
+Bootstrap: docker-daemon
+From: shl2026:{{ GITSHA }}
+
+%labels
+    org.shl2026.gitsha {{ GITSHA }}
+    org.shl2026.built_at {{ BUILD_DATE }}
+
+%environment
+    export VIRTUAL_ENV=/opt/venv
+    export PATH=/opt/venv/bin:$PATH
+    export PYTHONUNBUFFERED=1
+    export CUBLAS_WORKSPACE_CONFIG=:4096:8
+
+%runscript
+    exec python -m shl2026 "$@"
+
+%help
+    SHL 2026 frozen pipeline image. Built from git SHA {{ GITSHA }}.
+    Bind mounts expected at run time:
+      $PLG_GROUPS_STORAGE/<GRANT>/shl2026/data       -> /data           (RO except processed)
+      $PLG_GROUPS_STORAGE/<GRANT>/shl2026/models     -> /models         (RO)
+      $PLG_GROUPS_STORAGE/<GRANT>/shl2026/mlflow     -> /mlflow         (RW)
+      $PLG_GROUPS_STORAGE/<GRANT>/shl2026/dvc-cache  -> /dvc-cache      (RW)
+      $SCRATCH/shl2026/runs/$SLURM_JOB_ID            -> /scratch        (RW)

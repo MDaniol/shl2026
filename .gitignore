@@ -1,0 +1,93 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# --- Virtual envs / package managers ---
+.venv/
+venv/
+env/
+.python-version
+# Keep uv.lock under version control intentionally.
+
+# --- Editors / OS ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+notebooks/**/*.html
+
+# --- Test / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# --- Data (NEVER commit raw or processed SHL data) ---
+# Anchor to repo root so conf/data/ and src/shl2026/data/ are not swept.
+/data/
+!tests/fixtures/
+*.parquet
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.safetensors
+
+# --- DVC artifacts (DVC manages its own) ---
+/.dvc/cache
+/.dvc/tmp
+/.dvc/plots
+
+# --- Containers (built artefacts, never committed) ---
+containers/*.sif
+containers/*.tar
+containers/_build/
+
+# --- MLflow local artefacts (server-side store lives on Helios) ---
+mlruns/
+mlflow.db
+
+# --- Paper build outputs ---
+paper/_build/
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.synctex.gz
+paper/*.toc
+paper/*.pdf
+!paper/figures/*.pdf
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# --- Slurm/run artifacts ---
+slurm-*.out
+runs/

@@ -1,0 +1,29 @@
+# DVC-tracked tunables. Any change here busts the cache key of the
+# downstream stage that depends on the relevant section.
+#
+# Keep this file small: only knobs that meaningfully change pipeline outputs
+# belong here. Everything else lives in Hydra `conf/`.
+
+seed: 20260525
+
+features:
+  sampling_rate_hz: 100
+  window_samples: 500
+  channels: [Acc_x, Acc_y, Acc_z, Gyr_x, Gyr_y, Gyr_z, Magn_x, Magn_y, Magn_z]
+  normalisation: per_channel_zscore
+
+foundation:
+  # Each FM lives at $SHL_FM_CACHE/<name>@<revision>. The revision is the
+  # exact Hugging Face commit SHA; never use a branch name here.
+  placeholder:
+    hf_repo: null
+    hf_revision: null
+    pooling: mean
+
+head:
+  type: linear
+
+train:
+  epochs: 20
+  lr: 1.0e-3
+  batch_size: 256

@@ -1,0 +1,24 @@
+# Top-level Hydra config. Compose by overriding the defaults list.
+defaults:
+  - data: train_all_locations
+  - foundation: placeholder
+  - head: linear
+  - train: default
+  - eval: default
+  - _self_
+
+seed: 20260525
+experiment_name: ${oc.env:MLFLOW_EXPERIMENT_NAME,shl2026-dev}
+
+paths:
+  raw_data: ${oc.env:SHL_RAW_DATA,${oc.env:PLG_GROUPS_STORAGE,/tmp}/shl2026/data/raw}
+  processed_data: ${oc.env:SHL_PROCESSED_DATA,${oc.env:PLG_GROUPS_STORAGE,/tmp}/shl2026/data/processed}
+  foundation_cache: ${oc.env:SHL_FM_CACHE,${oc.env:PLG_GROUPS_STORAGE,/tmp}/shl2026/models/foundation}
+  scratch: ${oc.env:SCRATCH,/tmp}/shl2026/runs/${oc.env:SLURM_JOB_ID,local}
+
+hydra:
+  run:
+    dir: ${paths.scratch}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: ${paths.scratch}/multirun
+  output_subdir: hydra

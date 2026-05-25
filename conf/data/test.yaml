@@ -1,0 +1,11 @@
+name: test
+split: test
+# Hand is intentionally absent in the test set.
+locations: [Bag, Hips, Torso]
+sampling_rate_hz: 100
+window_samples: 500
+channels: [Acc_x, Acc_y, Acc_z, Gyr_x, Gyr_y, Gyr_z, Magn_x, Magn_y, Magn_z]
+n_frames: 92726
+# Frames are shuffled at the source; do not assume temporal contiguity.
+shuffled: true
+labels_available: false

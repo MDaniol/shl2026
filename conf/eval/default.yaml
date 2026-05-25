@@ -1,0 +1,7 @@
+name: default
+primary_metric: macro_f1
+breakdowns:
+  - per_class_f1
+  - per_user_f1
+  - per_location_f1
+log_confusion_matrix: true
