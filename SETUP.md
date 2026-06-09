@@ -60,7 +60,37 @@ pytest -q                                # CPU smoke
    cd shl2026
    ```
 
-5. **DVC remote:**
+5. **Shared Python environment + `env.sh`** — built once, used by all 12
+   students. `$HOME` is only 10 GB per person, so the venv, the uv cache, and
+   the uv-managed interpreter all live **off `$HOME`** (group storage /
+   scratch). Students never run `uv`; they `source` one file.
+
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   export PATH="$HOME/.local/bin:$PATH"
+   export UV_CACHE_DIR="$SCRATCH/uv-cache"           # build cache (regenerable)
+   export UV_PYTHON_INSTALL_DIR="$ROOT/uv-python"    # interpreter the venv links to
+
+   # Canonical clone the venv installs from (editable): updating the team SDK
+   # is `git pull` here (+ re-run the install line if dependencies changed).
+   git clone https://github.com/MDaniol/shl2026.git "$ROOT/repo"
+
+   uv venv --python 3.12 "$ROOT/venv"
+   source "$ROOT/venv/bin/activate"
+   uv pip install -e "$ROOT/repo[dev]"
+   deactivate
+
+   cat > "$ROOT/env.sh" <<'EOF'
+   # SHL 2026 team environment — students just `source` this (STUDENTS.md).
+   export SHL_EMB_CACHE="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/data/embeddings"
+   export MLFLOW_TRACKING_URI="<MLFLOW_URI>"   # lead fills in after step 8
+   source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/venv/bin/activate"
+   EOF
+
+   chmod -R g+rX "$ROOT"/{venv,repo,uv-python} "$ROOT/env.sh"
+   ```
+
+6. **DVC remote:**
 
    ```bash
    dvc init
@@ -68,7 +98,7 @@ pytest -q                                # CPU smoke
    git add .dvc/config && git commit -m "dvc: add athena remote"
    ```
 
-6. **Build the container** (once per dependency change):
+7. **Build the container** (once per dependency change):
 
    ```bash
    module load apptainer
@@ -81,31 +111,71 @@ pytest -q                                # CPU smoke
    (If on-cluster builds are blocked — policy is undocumented, ask Helpdesk —
    build off-cluster and `rsync` the `.sif` in.)
 
-7. **MLflow server** (long-running on a login node via tmux). It must be
-   reachable from **compute nodes** (JupyterHub sessions), so bind to the login
-   node's hostname, not 127.0.0.1:
+8. **MLflow server** (long-running on a login node via tmux). It must be
+   reachable from **compute nodes** (JupyterHub sessions). Two cluster
+   gotchas are baked into `scripts/mlflow_server.sh`:
+
+   - **Pin the login node.** `athena.cyfronet.pl` can land you on any login
+     node, and the node's hostname is baked into every student's tracking
+     URI. Note which node you're on (`hostname`, e.g. `login01`) and always
+     run/restart the server **on that same node** (`ssh login01` from the
+     other one if needed).
+   - **Artifacts are proxied through the server** (`--artifacts-destination`,
+     MLflow 2.x default) instead of `--default-artifact-root`. With the old
+     flag each client writes artifacts straight to the filesystem path —
+     which requires every student to have group-write + the right umask
+     there. Proxied, students only need HTTP to the port.
 
    ```bash
    tmux new -s mlflow
-   ROOT="${PLG_GROUPS_STORAGE}/plggmhealth/shl2026"
-   mlflow server \
-     --backend-store-uri "sqlite:///${ROOT}/mlflow/backend.db" \
-     --default-artifact-root "${ROOT}/mlflow/artifacts" \
-     --host "$(hostname)" --port 5000
+   source "$ROOT/venv/bin/activate"
+   ./scripts/mlflow_server.sh      # prints the student-facing URI
    # detach with Ctrl-b d
    ```
 
-   Record `http://$(hostname):5000` — that is the **`<MLFLOW_URI>`** every
-   student exports as `MLFLOW_TRACKING_URI` (fill it into `STUDENTS.md`).
-   Anyone on the cluster can reach the port, which is acceptable for this
-   sprint. From a laptop, view the UI via
-   `ssh -L 5000:<that-hostname>:5000 athena` → <http://localhost:5000>.
+   Record the printed `http://<login-node>:5000` — that is the
+   **`<MLFLOW_URI>`**: write it into **`$ROOT/env.sh`** (step 5), which sets
+   `MLFLOW_TRACKING_URI` for every student. Anyone on the cluster can reach the port, which is
+   acceptable for this sprint. From a laptop, view the UI via
+   `ssh -L 5000:<login-node>:5000 athena.cyfronet.pl` →
+   <http://localhost:5000>.
+
+   tmux survives logout but **not a login-node reboot** (maintenance). If
+   students report connection errors: `ssh` to the pinned node,
+   `tmux attach -t mlflow` (or re-run the block above). The SQLite file and
+   artifacts live on group storage, so nothing is lost across restarts.
+
+   **Verify before announcing the URI** (each check kills one assumption):
+
+   ```bash
+   # 1. SQLite locking works on this Lustre mount (run on the login node):
+   python -c "import sqlite3; c=sqlite3.connect('$ROOT/mlflow/_lock_test.db'); \
+              c.execute('create table t(x)'); c.execute('insert into t values(1)'); \
+              c.commit(); print('sqlite OK')"
+   rm "$ROOT/mlflow/_lock_test.db"
+   # If this throws "database is locked"/"disk I/O error": move the backend
+   # to NFS instead — backend-store-uri "sqlite:////$HOME/mlflow-backend.db"
+   # (tiny file, fits $HOME quota easily; artifacts stay on group storage).
+
+   # 2. Server is reachable from a COMPUTE node (where students actually run):
+   srun -A plgshl26-gpu-a100 -p plgrid-gpu-a100 --gres=gpu:1 --time=0:05:00 \
+        curl -s http://<login-node-fqdn>:5000/health    # expect: OK
+
+   # 3. An end-to-end run lands in the DB (from that same compute node or a
+   #    JupyterHub session): run the STUDENTS.md "first run" snippet and
+   #    confirm it appears in leaderboard() and in the UI.
+   ```
+
+   If the login node enforces CPU-time limits that eventually kill the
+   server (policy undocumented — symptom: tmux pane shows the process was
+   killed), ask Helpdesk for a blessed place to run it; restarts lose
+   nothing meanwhile.
 
    Do **not** fall back to a `file://` store or per-user databases — 12
    concurrent writers need the server, and per-directory SQLite silently
    fragments the leaderboard.
 
-8. **First smoke:**
+9. **First smoke:**
 
    ```bash
    dvc repro verify_raw         # SHA-256 sanity over raw data
@@ -122,8 +192,8 @@ pytest -q                                # CPU smoke
 - Reserve a Zenodo concept DOI (linked GitHub release at submission time).
 - Add the eventual repo URL + DOI placeholder back into `CITATION.cff`,
   `codemeta.json`, and `README.md`.
-- Fill the `STUDENTS.md` placeholders: `<MLFLOW_URI>`, `<NAME>`,
-  `<EMAIL>`.
+- Fill the placeholders: `<NAME>`, `<EMAIL>` in `STUDENTS.md`;
+  `<MLFLOW_URI>` in `$ROOT/env.sh` (step B.8).
 
 ## D. Verification (the six checks)
 

@@ -40,6 +40,9 @@ one cluster, one filesystem, no syncing.
 
 ```
 $PLG_GROUPS_STORAGE/plggmhealth/shl2026/
+├── env.sh               # ← students source this: env vars + shared venv
+├── venv/                # the one shared Python env (keeps $HOME empty)
+├── repo/                # canonical clone the venv installs from (lead-managed)
 ├── data/raw/            # immutable SHL Challenge data + MANIFEST.sha256 (chmod a-w)
 ├── data/embeddings/     # the shared cache  ← $SHL_EMB_CACHE
 ├── models/foundation/   # frozen FM weights (pinned by HF revision SHA)

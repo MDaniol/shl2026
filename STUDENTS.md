@@ -37,22 +37,25 @@ Approvals need a human, so **start today** even if you won't code until next wee
    > Athena is a GPU cluster — every session reserves an A100 and **bills the
    > team's GPU-hours the whole time it is open**. Spawn → work → **Stop the
    > session** (File → Hub Control Panel → Stop) when you take a break.
-5. **In a Jupyter terminal, set up the project** (copy-paste the whole block):
+5. **In a Jupyter terminal, set up the project** (copy-paste the whole block —
+   you install **nothing**; the team environment is shared, prebuilt in group
+   storage, and your 10 GB `$HOME` stays empty):
 
    ```bash
-   # One-time: install uv (our Python tool)
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   export PATH="$HOME/.local/bin:$PATH"  # make uv visible in this shell
-
-   # Clone the team skeleton and install it
+   # Clone the team skeleton (small — only your code lives here)
    git clone https://github.com/MDaniol/shl2026.git && cd shl2026
-   uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
 
-   # Shared embedding cache + the team MLflow server (the shared leaderboard).
-   # Put these two lines in ~/.bashrc too, so every new session has them.
-   export SHL_EMB_CACHE="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/data/embeddings"
-   export MLFLOW_TRACKING_URI="<MLFLOW_URI>"
+   # Activate the team environment: Python + all libraries + the shared
+   # embedding cache + the shared MLflow leaderboard, in one line.
+   source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
+
+   # Make every future session (and batch job) do it automatically:
+   echo 'source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"' >> ~/.bashrc
    ```
+
+   > Don't build your own venv on `$HOME` — it's only 10 GB and fills up fast.
+   > Missing a package? Ask the lead (it gets added to the shared env for
+   > everyone); for solo experiments, build a scratch venv on `$SCRATCH`.
 6. **First run** — in a notebook (copy `notebooks/template_experiment.ipynb`
    into `notebooks/<your-name>/` first):
 
@@ -83,7 +86,7 @@ need Athena access + the SSH key from step 3, nothing else.
 
 1. `ssh <your-plgrid-login>@athena.cyfronet.pl` — you land on a **login node**:
    fine for setup, editing, and submitting jobs, **never for computation**.
-2. Do step 5 above exactly as written (clone, install, exports → `~/.bashrc`).
+2. Do step 5 above exactly as written (clone + `source …/env.sh` → `~/.bashrc`).
 3. Put your experiment in a plain script — `notebooks/<your-name>/exp.py` with
    the code from Part 2 below (the `print(...)` lines are what you'll see in
    the job log).
@@ -101,7 +104,8 @@ need Athena access + the SSH key from step 3, nothing else.
    ```bash
    srun -A plgshl26-gpu-a100 -p plgrid-gpu-a100 --gres=gpu:1 \
         --cpus-per-task=4 --time=1:00:00 --pty /bin/bash -l
-   source .venv/bin/activate && python notebooks/<your-name>/exp.py  # …then exit!
+   source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
+   python notebooks/<your-name>/exp.py   # …iterate, then exit!
    ```
 
 5. Checking the team leaderboard is light enough for the login node:
@@ -199,10 +203,14 @@ regenerates its predictions in the container, and submits one
 - **Portal won't let me register** → use the AGH/institutional login option.
 - **"Permission denied" pushing** → the repo is public to read, but you need
   write access to push: give the lead your GitHub username.
-- **`leaderboard()` shows only my runs** → `MLFLOW_TRACKING_URI` isn't set in
-  this session (see Part 1, step 5; put it in `~/.bashrc`).
+- **`leaderboard()` shows only my runs** (or `ModuleNotFoundError: shl2026`) →
+  you haven't sourced the team `env.sh` in this session (Part 1, step 5 —
+  add it to `~/.bashrc`).
 - **`FileNotFoundError: no cached embeddings for fm=...`** → that FM isn't
   extracted yet; `list_available()` shows what is, `"synthetic"` always works.
+- **Disk quota exceeded in `$HOME`** → something heavy landed in your 10 GB
+  home (a venv, caches, data). Keep `$HOME` to code; the team env and cache
+  live in group storage (`hpc-fs` shows your usage).
 - **Everything cluster-side** (SSH, Slurm, storage, batch jobs) →
   [`docs/CLUSTER.md`](docs/CLUSTER.md).
 
@@ -213,6 +221,6 @@ regenerates its predictions in the container, and submits one
 
 ---
 
-*Lead: fill the placeholders before sharing — `<MLFLOW_URI>`,
-`<NAME>`, `<EMAIL>`. Grant `plgshl26`, group `plggmhealth`, and the cache path
-are already correct.*
+*Lead: fill `<NAME>` and `<EMAIL>` before sharing (the MLflow URI lives in the
+team `env.sh`, not here). Grant `plgshl26`, group `plggmhealth`, and the cache
+path are already correct.*

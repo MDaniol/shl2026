@@ -18,16 +18,18 @@
 
 set -euo pipefail
 
-# sbatch starts in the directory you submitted from and inherits your
-# environment, so ~/.bashrc exports (SHL_EMB_CACHE, MLFLOW_TRACKING_URI)
-# carry over. The cache path is re-derived here as a safety net.
-export SHL_EMB_CACHE="${SHL_EMB_CACHE:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/data/embeddings}"
-
-if [[ ! -f .venv/bin/activate ]]; then
-  echo "error: no .venv here — submit from the repo root (cd ~/shl2026)" >&2
+# The team env.sh provides Python, all libraries, SHL_EMB_CACHE and
+# MLFLOW_TRACKING_URI (see STUDENTS.md Part 1, step 5). A personal .venv in
+# the submit directory is the fallback for solo experiments.
+ENV_SH="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
+if [[ -f "$ENV_SH" ]]; then
+  source "$ENV_SH"
+elif [[ -f .venv/bin/activate ]]; then
+  source .venv/bin/activate
+else
+  echo "error: team env not found at $ENV_SH and no local .venv — see STUDENTS.md" >&2
   exit 1
 fi
-source .venv/bin/activate
 
 if [[ $# -lt 1 ]]; then
   echo "usage: sbatch scripts/student_job.sbatch <your-script.py> [args...]" >&2
