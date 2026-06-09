@@ -237,6 +237,11 @@ regenerates its predictions in the container, and submits one
   add it to `~/.bashrc`).
 - **`FileNotFoundError: no cached embeddings for fm=...`** → that FM isn't
   extracted yet; `list_available()` shows what is, `"synthetic"` always works.
+- **Batch job says `can't open file: No such file or directory`** for a file
+  that's right there → you put it on `/tmp` (or another node-local path).
+  Your job runs on a *different machine* that has its own empty `/tmp`. Keep
+  scripts where STUDENTS.md puts them — `notebooks/<your-name>/` in the repo
+  (it's on `$HOME`, which every node sees).
 - **Disk quota exceeded in `$HOME`** → something heavy landed in your 10 GB
   home (a venv, caches, data). Keep `$HOME` to code; the team env and cache
   live in group storage (`hpc-fs` shows your usage).

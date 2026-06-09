@@ -37,6 +37,7 @@ one cluster, one filesystem, no syncing.
 | Home | `$HOME` | 10 GB | backed up; **code only** |
 | Scratch | `$SCRATCH` | large | **auto-purged** (files >30 d, job dirs >7 d); never keepables |
 | **Project root** | `$PLG_GROUPS_STORAGE/plggmhealth/shl2026` | 6 TB (group quota) | everything durable |
+| Node-local | `/tmp`, `$SCRATCH_LOCAL` | small | **per-node**: a file written here on one node doesn't exist on any other — never pass such a path to `sbatch`/`srun` |
 
 ```
 $PLG_GROUPS_STORAGE/plggmhealth/shl2026/
