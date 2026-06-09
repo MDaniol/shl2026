@@ -88,6 +88,14 @@ pytest -q                                # CPU smoke
    EOF
 
    chmod -R g+rX "$ROOT"/{venv,repo,uv-python} "$ROOT/env.sh"
+
+   # Seed the synthetic embedding cache — STUDENTS.md promises that
+   # embeddings("synthetic", ...) always works, but only tests generate it
+   # (into tmp dirs); the shared cache needs this once:
+   source "$ROOT/env.sh"
+   python -c "from shl2026.data.synthetic import make_synthetic_embedding_cache as m; \
+              import os; print(m(os.environ['SHL_EMB_CACHE']))"
+   chmod -R g+rX "$SHL_EMB_CACHE"
    ```
 
    **Adding a package later** (student request — aim for same-day):
@@ -127,11 +135,18 @@ pytest -q                                # CPU smoke
    build off-cluster and `rsync` the `.sif` in.)
 
 8. **MLflow server** (long-running on a login node via tmux). It must be
-   reachable from **compute nodes** (JupyterHub sessions). Two cluster
+   reachable from **compute nodes** (JupyterHub sessions). Three cluster
    gotchas are baked into `scripts/mlflow_server.sh`:
 
+   - **Use the INTERNAL address, not the hostname.** Login nodes are
+     multi-homed: the public name (`login01.athena.cyfronet.pl` → `ext`
+     interface) is **unreachable from compute nodes** (`errno 113, no route
+     to host`). Compute traffic rides the InfiniBand network (`ib0`,
+     verified 2026-06: login01 = `172.23.30.9`). The script derives the
+     right address automatically (`ip route get <a-compute-node-ip>` →
+     `src` field) and prints the URI to publish.
    - **Pin the login node.** `athena.cyfronet.pl` can land you on any login
-     node, and the node's hostname is baked into every student's tracking
+     node, and the pinned node's *IP* is baked into every student's tracking
      URI. Note which node you're on (`hostname`, e.g. `login01`) and always
      run/restart the server **on that same node** (`ssh login01` from the
      other one if needed).
@@ -148,11 +163,12 @@ pytest -q                                # CPU smoke
    # detach with Ctrl-b d
    ```
 
-   Record the printed `http://<login-node>:5000` — that is the
+   Record the printed `http://<internal-ip>:5000` — that is the
    **`<MLFLOW_URI>`**: write it into **`$ROOT/env.sh`** (step 5), which sets
-   `MLFLOW_TRACKING_URI` for every student. Anyone on the cluster can reach the port, which is
-   acceptable for this sprint. From a laptop, view the UI via
-   `ssh -L 5000:<login-node>:5000 athena.cyfronet.pl` →
+   `MLFLOW_TRACKING_URI` for every student. Anyone on the cluster can reach
+   the port, which is acceptable for this sprint. From a laptop, view the UI
+   via `ssh -L 5000:localhost:5000 <login>@athena.cyfronet.pl` (tunnel
+   terminates on the login node itself, so `localhost` works there) →
    <http://localhost:5000>.
 
    tmux survives logout but **not a login-node reboot** (maintenance). If
@@ -172,9 +188,10 @@ pytest -q                                # CPU smoke
    # to NFS instead — backend-store-uri "sqlite:////$HOME/mlflow-backend.db"
    # (tiny file, fits $HOME quota easily; artifacts stay on group storage).
 
-   # 2. Server is reachable from a COMPUTE node (where students actually run):
+   # 2. Server is reachable from a COMPUTE node (where students actually run)
+   #    — use the INTERNAL IP the script printed, never the public hostname:
    srun -A plgshl26-gpu-a100 -p plgrid-gpu-a100 --gres=gpu:1 --time=0:05:00 \
-        curl -s http://<login-node-fqdn>:5000/health    # expect: OK
+        curl -s http://<internal-ip>:5000/health        # expect: OK
 
    # 3. An end-to-end run lands in the DB (from that same compute node or a
    #    JupyterHub session): run the STUDENTS.md "first run" snippet and

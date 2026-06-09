@@ -16,7 +16,20 @@ PORT="${MLFLOW_PORT:-5000}"
 
 mkdir -p "${ROOT}/mlflow/artifacts"
 
-echo "MLFLOW_TRACKING_URI for students:  http://$(hostname -f):${PORT}"
+# The student-facing URI must use this node's address on the network the
+# COMPUTE nodes see (on Athena: ib0). The public hostname/ext interface is
+# unreachable from compute nodes (errno 113). Derive it from the route to an
+# actual compute node; fall back to the public name if that fails.
+COMPUTE_NODE="$(sinfo -h -o '%n' 2>/dev/null | head -1 || true)"
+URI_HOST=""
+if [[ -n "${COMPUTE_NODE}" ]]; then
+  COMPUTE_IP="$(getent hosts "${COMPUTE_NODE}" | awk '{print $1}' || true)"
+  [[ -n "${COMPUTE_IP}" ]] && \
+    URI_HOST="$(ip route get "${COMPUTE_IP}" 2>/dev/null | grep -oP 'src \K\S+' || true)"
+fi
+URI_HOST="${URI_HOST:-$(hostname -f)}"
+
+echo "MLFLOW_TRACKING_URI for students:  http://${URI_HOST}:${PORT}"
 
 # --workers 1 is load-bearing: the default (4 gunicorn workers) means four
 # processes writing one SQLite file on Lustre, whose POSIX-lock support is
