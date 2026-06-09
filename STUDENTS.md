@@ -25,8 +25,10 @@ Approvals need a human, so **start today** even if you won't code until next wee
    to grant **`plgshl26`** / group **`plggmhealth`**; accept the invitation in
    the portal when it appears.
 3. **In the portal, request access to:** **Athena** and **Jupyter** (JupyterHub).
-   Each is approved by a human — request both now. Optionally add an SSH key
-   (Profile → SSH keys; `ssh-keygen -t ed25519`, paste `~/.ssh/id_ed25519.pub`).
+   Each is approved by a human — request both now. Also add an **SSH key**
+   (Profile → SSH keys; `ssh-keygen -t ed25519`, paste `~/.ssh/id_ed25519.pub`):
+   it's how you work while Jupyter approval is pending (see *the SSH + batch
+   path* below), and your fallback after.
 4. **Open JupyterHub** (link on the PLGrid Jupyter service page) and spawn a
    session on **Athena**:
    - account **`plgshl26-gpu-a100`**, partition **`plgrid-gpu-a100`**
@@ -73,6 +75,43 @@ Approvals need a human, so **start today** even if you won't code until next wee
 the real ones. Real SHL embeddings appear in the same cache as the team extracts
 them — `list_available()` shows what's there (e.g. `"moment"`); just swap the
 name, nothing else changes.
+
+### No JupyterHub (yet)? The SSH + batch path
+
+Everything works over plain SSH — you run scripts instead of notebooks. You
+need Athena access + the SSH key from step 3, nothing else.
+
+1. `ssh <your-plgrid-login>@athena.cyfronet.pl` — you land on a **login node**:
+   fine for setup, editing, and submitting jobs, **never for computation**.
+2. Do step 5 above exactly as written (clone, install, exports → `~/.bashrc`).
+3. Put your experiment in a plain script — `notebooks/<your-name>/exp.py` with
+   the code from Part 2 below (the `print(...)` lines are what you'll see in
+   the job log).
+4. Run it on a compute node, from the repo root:
+
+   ```bash
+   sbatch scripts/student_job.sbatch notebooks/<your-name>/exp.py
+   squeue --me                 # PD = queued, R = running, gone = finished
+   cat slurm-<jobid>.out       # your script's output (incl. result.summary())
+   ```
+
+   For fast trial-and-error, take an interactive shell instead — but remember
+   it bills until you `exit`:
+
+   ```bash
+   srun -A plgshl26-gpu-a100 -p plgrid-gpu-a100 --gres=gpu:1 \
+        --cpus-per-task=4 --time=1:00:00 --pty /bin/bash -l
+   source .venv/bin/activate && python notebooks/<your-name>/exp.py  # …then exit!
+   ```
+
+5. Checking the team leaderboard is light enough for the login node:
+
+   ```bash
+   python -c "from shl2026 import leaderboard; print(leaderboard().head(15))"
+   ```
+
+A batch job bills only while it runs (the inner loop = minutes); details and
+debugging in [`docs/CLUSTER.md`](docs/CLUSTER.md).
 
 ---
 
