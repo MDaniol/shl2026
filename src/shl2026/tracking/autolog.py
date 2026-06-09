@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
@@ -41,6 +42,10 @@ def _context_tags(params_path: str | os.PathLike[str] | None) -> dict[str, str]:
         "plgrid_grant": ctx.plgrid_grant,
         "params_sha256": ctx.params_sha256,
         "student": os.environ.get("USER") or os.environ.get("USERNAME"),
+        # Which Python env produced the run: the team venv = reproducible in
+        # the container; a personal venv = provisional (see STUDENTS.md,
+        # "Need an extra library?").
+        "python_env": sys.prefix,
     }
     return {k: v for k, v in tags.items() if v is not None}
 

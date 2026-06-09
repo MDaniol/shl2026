@@ -54,8 +54,7 @@ Approvals need a human, so **start today** even if you won't code until next wee
    ```
 
    > Don't build your own venv on `$HOME` — it's only 10 GB and fills up fast.
-   > Missing a package? Ask the lead (it gets added to the shared env for
-   > everyone); for solo experiments, build a scratch venv on `$SCRATCH`.
+   > Missing a package? See *Need an extra library?* in Part 2.
 6. **First run** — in a notebook (copy `notebooks/template_experiment.ipynb`
    into `notebooks/<your-name>/` first):
 
@@ -190,6 +189,36 @@ ablation. **Claim a lane in [`IDEAS.md`](IDEAS.md) before sinking a day in**, so
 6. **Close idle JupyterHub sessions.** Every open session holds an A100. Big
    sweeps don't belong in a notebook → ask the lead about `sbatch`
    (see [`docs/CLUSTER.md`](docs/CLUSTER.md)).
+
+### Need an extra library?
+
+Two paths — use both at once:
+
+1. **Tell the lead (the default).** It's one command on their side; the package
+   lands in the shared env and gets pinned in `pyproject.toml`, so everyone has
+   it and every result stays reproducible. Usually same-day.
+2. **Don't wait — self-serve on `$SCRATCH`** (never `$HOME`):
+
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh   # once; uv itself is tiny
+   export UV_CACHE_DIR="$SCRATCH/uv-cache"
+   uv venv "$SCRATCH/venvs/shl2026" \
+     --python "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/venv/bin/python"
+   cd ~/shl2026 && ln -sfn "$SCRATCH/venvs/shl2026" .venv
+   source .venv/bin/activate     # your packages win; the team env vars stay
+   uv pip install -e ".[dev]" <your-package>
+   ```
+
+   `scripts/student_job.sbatch` automatically activates this `.venv` on top of
+   the team env, so batch jobs just work. `$SCRATCH` is purged (files >30
+   days) — if your venv vanishes, rebuilding takes two minutes.
+
+**The promotion rule.** A run from a personal venv is *provisional*: the team
+container can't regenerate it, so it can't be submitted. Every run is tagged
+with the env that produced it (`python_env` in MLflow), so nobody has to
+remember. When your number is worth keeping: tell the lead the run + the
+packages → they go into the shared env → re-run once in the team env (it's
+seconds) → now it's real.
 
 ## When your result is good enough to submit
 

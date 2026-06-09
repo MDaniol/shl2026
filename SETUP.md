@@ -90,6 +90,21 @@ pytest -q                                # CPU smoke
    chmod -R g+rX "$ROOT"/{venv,repo,uv-python} "$ROOT/env.sh"
    ```
 
+   **Adding a package later** (student request — aim for same-day):
+
+   ```bash
+   source "$ROOT/venv/bin/activate"
+   uv pip install <pkg>
+   # pin it: add to pyproject.toml dependencies in $ROOT/repo, commit + push
+   chmod -R g+rX "$ROOT/venv"
+   ```
+
+   Rebuild the container before the next *certified* run (`dvc repro` /
+   submission), not on every install. **Submission gate:** before regenerating
+   any winning run, check its MLflow `python_env` tag — if it isn't
+   `$ROOT/venv`, the student used a personal venv: promote the packages, have
+   them re-run in the team env, and only then certify.
+
 6. **DVC remote:**
 
    ```bash

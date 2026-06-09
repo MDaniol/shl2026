@@ -18,15 +18,21 @@
 
 set -euo pipefail
 
-# The team env.sh provides Python, all libraries, SHL_EMB_CACHE and
-# MLFLOW_TRACKING_URI (see STUDENTS.md Part 1, step 5). A personal .venv in
-# the submit directory is the fallback for solo experiments.
+# The team env.sh provides SHL_EMB_CACHE, MLFLOW_TRACKING_URI and the shared
+# venv (STUDENTS.md Part 1, step 5). A personal .venv in the submit directory
+# (see "Need an extra library?") is activated on top, so it wins on Python
+# packages while the team env vars stay.
+ENV_FOUND=0
 ENV_SH="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
 if [[ -f "$ENV_SH" ]]; then
   source "$ENV_SH"
-elif [[ -f .venv/bin/activate ]]; then
+  ENV_FOUND=1
+fi
+if [[ -f .venv/bin/activate ]]; then
   source .venv/bin/activate
-else
+  ENV_FOUND=1
+fi
+if [[ "$ENV_FOUND" -eq 0 ]]; then
   echo "error: team env not found at $ENV_SH and no local .venv — see STUDENTS.md" >&2
   exit 1
 fi
