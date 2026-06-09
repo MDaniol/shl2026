@@ -1,7 +1,7 @@
 """Capture the per-run context required by the reproducibility contract.
 
 Every Slurm job calls :func:`bind_run_context` once, before doing any work, to
-attach git SHA, container SHA-256, Slurm job ID, Helios node, PLGrid grant,
+attach git SHA, container SHA-256, Slurm job ID, compute node, PLGrid grant,
 and the resolved Hydra config to the active MLflow run.
 """
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the hermetic Apptainer image for the current git SHA, tagged with it.
 #
-# On Helios: needs apptainer in PATH (module load apptainer).
+# On Athena: needs apptainer in PATH (module load apptainer).
 # Locally: needs docker (or podman) and apptainer.
 #
 # Writes:

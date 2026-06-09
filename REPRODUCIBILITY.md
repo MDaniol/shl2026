@@ -10,7 +10,7 @@ either fixed or accompanied by an explicit, documented amendment to this file.
 > **(git SHA × container SHA-256 × `MANIFEST.sha256` × DVC pipeline hashes ×
 > `params.yaml` hash)**,
 > running `dvc repro format_submission` inside the named Apptainer image on
-> Helios MUST produce a `teamName_predictions.txt` whose SHA-256 matches the
+> Athena MUST produce a `teamName_predictions.txt` whose SHA-256 matches the
 > one logged in the corresponding MLflow run, modulo the documented
 > floating-point-nondeterminism allowances below.
 

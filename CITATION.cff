@@ -11,7 +11,7 @@ authors:
     given-names: Mateusz
     affiliation: "AGH University of Science and Technology, Kraków, Poland"
     email: mateuszdaniol@gmail.com
-repository-code: "https://github.com/REPLACE_ME/shl2026"
+repository-code: "https://github.com/MDaniol/shl2026"
 license: MIT
 version: "0.0.0-scaffold"
 date-released: "2026-05-25"

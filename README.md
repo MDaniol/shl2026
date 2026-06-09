@@ -6,29 +6,33 @@ recognition using **frozen foundation models** with lightweight trainable
 heads, on 5 s × 100 Hz inertial windows.
 
 > Code: MIT licence. Data: SHL terms (see `DATA_LICENSE.md`). DOI: reserved on
-> Zenodo at submission time.
+> Zenodo at submission time. **Predictions deadline: 30.06.2026.**
 
-## Quickstart (Helios, post-setup)
+> **New to the team?** Everything you need is in [`STUDENTS.md`](STUDENTS.md)
+> (PLGrid account → first run → daily work).
+
+## Quickstart (Athena, post-setup)
 
 ```bash
-# Hydrate code + data on Helios
+# Hydrate code + data on Athena
 git pull
 dvc pull
 
 # Build the hermetic container (only when deps change)
 ./scripts/build_container.sh
 
-# Submit a run (refuses on dirty tree or hash mismatch)
-./scripts/submit.sh baseline_moment foundation=moment head=mlp
+# Submit the embedding-extraction job (refuses on dirty tree or hash mismatch)
+./scripts/submit.sh embed frozen_embeddings
 
 # Reproduce end-to-end inside the container
 apptainer exec containers/shl2026_$(git rev-parse --short HEAD).sif \
     dvc repro format_submission
 ```
 
-See `SETUP.md` for the one-time Helios bootstrap, `METHODS.md` for the
-scientific contract, and `REPRODUCIBILITY.md` for the formal reproducibility
-contract that every release must honour.
+See `SETUP.md` for the one-time Athena bootstrap, `docs/CLUSTER.md` for the
+cluster reference, `METHODS.md` for the scientific contract, and
+`REPRODUCIBILITY.md` for the formal reproducibility contract that every
+release must honour.
 
 ## Layout
 

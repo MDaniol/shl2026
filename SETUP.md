@@ -1,42 +1,48 @@
-# Setup — one-time bootstrap
+# Setup — one-time bootstrap (lead)
 
-This document describes the manual steps the user (or a teammate) takes once
-to bring a fresh environment online. The repo itself stays minimal.
+Manual steps taken **once** to bring a fresh environment online. Students never
+do any of this — their path is `STUDENTS.md`. Cluster reference:
+`docs/CLUSTER.md`.
 
 ## A. Local laptop
 
 ```bash
 # Clone (after the GitHub repo exists)
-git clone git@github.com:<org>/shl2026.git
+git clone git@github.com:MDaniol/shl2026.git
 cd shl2026
 
 # Dev env
 curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"     # in case ~/.local/bin isn't on PATH yet
 uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 pre-commit install
 pytest -q                                # CPU smoke
 ```
 
-## B. Helios (one-time, per team)
+## B. Athena (one-time, per team)
 
-1. **PLGrid grant**. Confirm an active grant; record its ID as `PLGRID_GRANT`
-   (e.g. `plgshl2026`). Put it in `~/.bashrc`:
-
-   ```bash
-   export PLGRID_GRANT=plgshl2026
-   ```
-
-2. **Layout**. From a Helios login node:
+1. **PLGrid grant.** Grant **`plgshl26`** (active 2026-05-29 → 2027-05-28):
+   Athena `plgshl26-gpu-a100` (15,000 GPU-h, partition `plgrid-gpu-a100`), plus
+   Helios fallback allocations. Storage = 6 TB via group **`plggmhealth`** —
+   the shared area is keyed by *group name*, not grant name. Put in `~/.bashrc`:
 
    ```bash
-   ROOT="${PLG_GROUPS_STORAGE}/${PLGRID_GRANT}/shl2026"
-   mkdir -p "$ROOT"/{data/{raw,processed},models/foundation,mlflow/artifacts,dvc-cache,containers}
+   export PLGRID_GRANT=plgshl26
    ```
 
-3. **Raw data**. Download SHL train / validation / test archives into
-   `$ROOT/data/raw/` (preserving the `train/{Bag,Hips,Torso,Hand}/` layout
-   and the test split with no Hand directory). Then:
+2. **Layout.** From an Athena login node:
+
+   ```bash
+   ROOT="${PLG_GROUPS_STORAGE}/plggmhealth/shl2026"
+   mkdir -p "$ROOT"/{data/{raw,embeddings},models/foundation,mlflow/artifacts,dvc-cache,containers}
+   ```
+
+3. **Raw data.** Download the SHL Challenge 2026 train / validation / test
+   archives (links from <http://www.shl-dataset.org/challenge-2026/> after team
+   registration; SHL terms — see `DATA_LICENSE.md`, never redistribute) into
+   `$ROOT/data/raw/`, preserving the `train/{Bag,Hips,Torso,Hand}/` layout and
+   the test split with no Hand directory. Then:
 
    ```bash
    python scripts/verify_data.py generate \
@@ -46,23 +52,23 @@ pytest -q                                # CPU smoke
    chmod -R a-w "$ROOT/data/raw"     # make immutable
    ```
 
-4. **Clone code on Helios**:
+4. **Clone code on Athena:**
 
    ```bash
    cd "$HOME"
-   git clone git@github.com:<org>/shl2026.git
+   git clone git@github.com:MDaniol/shl2026.git
    cd shl2026
    ```
 
-5. **DVC remote**:
+5. **DVC remote:**
 
    ```bash
    dvc init
-   dvc remote add -d helios "$ROOT/dvc-cache"
-   git add .dvc/config && git commit -m "dvc: add helios remote"
+   dvc remote add -d athena "$ROOT/dvc-cache"
+   git add .dvc/config && git commit -m "dvc: add athena remote"
    ```
 
-6. **Build the container** (once per code-relevant change):
+6. **Build the container** (once per dependency change):
 
    ```bash
    module load apptainer
@@ -72,32 +78,34 @@ pytest -q                                # CPU smoke
           containers/
    ```
 
-7. **MLflow** (option A: long-running on login node via tmux):
+   (If on-cluster builds are blocked — policy is undocumented, ask Helpdesk —
+   build off-cluster and `rsync` the `.sif` in.)
+
+7. **MLflow server** (long-running on a login node via tmux). It must be
+   reachable from **compute nodes** (JupyterHub sessions), so bind to the login
+   node's hostname, not 127.0.0.1:
 
    ```bash
    tmux new -s mlflow
-   export ROOT="${PLG_GROUPS_STORAGE}/${PLGRID_GRANT}/shl2026"
+   ROOT="${PLG_GROUPS_STORAGE}/plggmhealth/shl2026"
    mlflow server \
      --backend-store-uri "sqlite:///${ROOT}/mlflow/backend.db" \
      --default-artifact-root "${ROOT}/mlflow/artifacts" \
-     --host 127.0.0.1 --port 5000
+     --host "$(hostname)" --port 5000
    # detach with Ctrl-b d
    ```
 
-   From the laptop:
+   Record `http://$(hostname):5000` — that is the **`<MLFLOW_URI>`** every
+   student exports as `MLFLOW_TRACKING_URI` (fill it into `STUDENTS.md`).
+   Anyone on the cluster can reach the port, which is acceptable for this
+   sprint. From a laptop, view the UI via
+   `ssh -L 5000:<that-hostname>:5000 athena` → <http://localhost:5000>.
 
-   ```bash
-   ssh -L 5000:127.0.0.1:5000 helios
-   # open http://localhost:5000
-   ```
+   Do **not** fall back to a `file://` store or per-user databases — 12
+   concurrent writers need the server, and per-directory SQLite silently
+   fragments the leaderboard.
 
-   **Option B fallback** (no server allowed): everywhere export
-
-   ```bash
-   export MLFLOW_TRACKING_URI="file://${ROOT}/mlflow"
-   ```
-
-8. **First smoke**:
+8. **First smoke:**
 
    ```bash
    dvc repro verify_raw         # SHA-256 sanity over raw data
@@ -107,12 +115,15 @@ pytest -q                                # CPU smoke
 
 ## C. GitHub side
 
-- Create private repo `<org>/shl2026`.
-- Branch protection on `main`: require PR review (one approver), require CI
-  green, no force-push.
+- Repo: **public** `MDaniol/shl2026` (<https://github.com/MDaniol/shl2026>).
+  Add every student as a collaborator with write access (they push to `main`
+  directly this sprint — see `STUDENTS.md`, so **no required reviews**; just
+  block force-pushes and keep CI on push).
 - Reserve a Zenodo concept DOI (linked GitHub release at submission time).
 - Add the eventual repo URL + DOI placeholder back into `CITATION.cff`,
   `codemeta.json`, and `README.md`.
+- Fill the `STUDENTS.md` placeholders: `<MLFLOW_URI>`, `<NAME>`,
+  `<EMAIL>`.
 
 ## D. Verification (the six checks)
 

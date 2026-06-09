@@ -10,6 +10,17 @@ Recognise 8 modes of locomotion / transportation from inertial smartphone
 sensors, **user-independent**: training data is from user 1 only; validation
 and test data mix users 2 and 3.
 
+The 8 classes (standard SHL labelling — **verify the exact numbering against the
+live challenge page before submission**; the SDK assumes labels `1..8`):
+
+| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|
+| Still | Walk | Run | Bike | Car | Bus | Train | Subway |
+
+So when `result.summary()` flags a weak `class_6`, that's **Bus** — useful for
+reasoning about *which* modes your model confuses (e.g. Car/Bus/Train, the
+motorised trio, are the classic hard cases).
+
 ## Data
 
 - 5 s windows at 100 Hz → frames of shape (samples=500, channels=9): Acc, Gyr,
@@ -20,10 +31,10 @@ and test data mix users 2 and 3.
 - Test: 28 days, users 2&3 mixed, **only Bag/Hips/Torso (no Hand)**; 92 726
   frames. Frames are **shuffled** to test real-time-style robustness.
 
-Raw files live on Helios under
-`$PLG_GROUPS_STORAGE/<GRANT>/shl2026/data/raw/` and are immutable. Their
-SHA-256 hashes are recorded in `MANIFEST.sha256` and re-verified at the start
-of every pipeline run.
+Raw files live in group storage under
+`$PLG_GROUPS_STORAGE/plggmhealth/shl2026/data/raw/` (on Athena, where embedding
+extraction runs) and are immutable. Their SHA-256 hashes are recorded in
+`MANIFEST.sha256` and re-verified at the start of every pipeline run.
 
 ## Modelling rule (binding)
 
@@ -66,4 +77,4 @@ Drive link) to `shldataset.challenge@gmail.com`.
   forbidden at inference time.
 - Foundation-model revision pins are critical: a silent HF model update would
   break reproducibility. All revisions are pinned by commit SHA in
-  `params.yaml` and cached on Helios.
+  `params.yaml` and cached in group storage on Athena.
