@@ -8,8 +8,16 @@ heads, on 5 s × 100 Hz inertial windows.
 > Code: MIT licence. Data: SHL terms (see `DATA_LICENSE.md`). DOI: reserved on
 > Zenodo at submission time. **Predictions deadline: 30.06.2026.**
 
-> **New to the team?** Everything you need is in [`STUDENTS.md`](STUDENTS.md)
-> (PLGrid account → first run → daily work).
+## What to read first
+
+| You are… | Read | What's in it |
+|---|---|---|
+| **A student joining the team** | [`STUDENTS.md`](STUDENTS.md) — **the only doc you need** | PLGrid account → first run → the daily experiment loop, end to end |
+| Stuck on something cluster-side | [`docs/CLUSTER.md`](docs/CLUSTER.md) | Slurm, storage, billing, debugging — the layer under `STUDENTS.md` |
+| Curious what we're actually doing | [`METHODS.md`](METHODS.md) | the scientific contract: task, data, frozen-FM approach, metric |
+| The lead, rebuilding infrastructure | [`SETUP.md`](SETUP.md) | one-time bootstrap: storage, env, MLflow server, GitHub |
+| Certifying or releasing a result | [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | the formal contract every release must honour |
+| Picking what to try next | [`IDEAS.md`](IDEAS.md) | the idea board — claim a lane before sinking a day in |
 
 ## Quickstart (Athena, post-setup)
 
@@ -28,11 +36,6 @@ dvc pull
 apptainer exec containers/shl2026_$(git rev-parse --short HEAD).sif \
     dvc repro format_submission
 ```
-
-See `SETUP.md` for the one-time Athena bootstrap, `docs/CLUSTER.md` for the
-cluster reference, `METHODS.md` for the scientific contract, and
-`REPRODUCIBILITY.md` for the formal reproducibility contract that every
-release must honour.
 
 ## Layout
 

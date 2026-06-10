@@ -170,6 +170,11 @@ extracted once for everyone.
    test**. Numbers including Hand are optimistic — for an honest comparison use
    `Bag, Hips, Torso`, or say `hand` in your run name.
 5. **Fix `seed=0`; re-run close calls with 2–3 seeds** (MLP is seed-sensitive).
+6. **Commit & push before runs you care about.** Uncommitted runs show as
+   `git_dirty=true` on the leaderboard and can't be certified for submission.
+   `track()` auto-attaches a code snapshot (`code_snapshot/` in the run's
+   artifacts: diff + new files + executed notebook cells) so even a dirty run
+   stays recreatable — but that's the safety net, not the workflow.
 
 **Change one thing per run** and encode it in the run name
 (`moment|3loc|mlp-256` beats `test3`) — then `leaderboard()` reads as a clean
@@ -183,7 +188,17 @@ ablation. **Claim a lane in [`IDEAS.md`](IDEAS.md) before sinking a day in**, so
 2. **`src/` is the shared skeleton — don't change it.** New head / SDK change?
    Ping the lead; it gets added for everyone.
 3. **Never touch `params.yaml`, `data/raw/`, or other people's MLflow runs.**
-4. **Push directly to `main`, often.** No PRs this sprint. Pull before you push.
+4. **Push often — via a quick PR.** `main` only takes pull requests, but
+   **no approval is needed**: you merge your own PR right away. The loop is:
+
+   ```bash
+   git checkout -b <your-name>/<anything> && git add -A && git commit -m "..."
+   git push -u origin HEAD
+   gh pr create --fill && gh pr merge --squash --delete-branch
+   ```
+
+   (~30 s; or click "Merge" on github.com. `git checkout main && git pull`
+   before starting the next one.)
 5. **`track(...)` every run** — it's one line, and it's how the team sees your
    results and reproduces the winner.
 6. **Close idle JupyterHub sessions.** Every open session holds an A100. Big
@@ -250,11 +265,6 @@ regenerates its predictions in the container, and submits one
 
 ## Who to ask
 
-- **Lead / grant manager:** `<NAME>` — `<EMAIL>` (PLGrid grant, access, repo).
+- **Lead / grant manager:** Mateusz Daniol — <daniol@agh.edu.pl> (PLGrid
+  grant, access, repo).
 - **PLGrid Helpdesk:** `helpdesk@plgrid.pl` — account/portal problems only.
-
----
-
-*Lead: fill `<NAME>` and `<EMAIL>` before sharing (the MLflow URI lives in the
-team `env.sh`, not here). Grant `plgshl26`, group `plggmhealth`, and the cache
-path are already correct.*

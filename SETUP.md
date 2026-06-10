@@ -218,14 +218,18 @@ pytest -q                                # CPU smoke
 ## C. GitHub side
 
 - Repo: **public** `MDaniol/shl2026` (<https://github.com/MDaniol/shl2026>).
-  Add every student as a collaborator with write access (they push to `main`
-  directly this sprint — see `STUDENTS.md`, so **no required reviews**; just
-  block force-pushes and keep CI on push).
+  Add every student as a collaborator with write access.
+- Branch protection on `main` (applied 2026-06-10 via `gh api`): **PR required,
+  0 approvals** — students self-merge instantly, but no direct pushes; admins
+  (lead) exempt (`enforce_admins: false`); force-pushes and branch deletion
+  blocked. Students' flow: branch → push → PR → self-merge (`STUDENTS.md`
+  house rule 4). CI stays on push.
 - Reserve a Zenodo concept DOI (linked GitHub release at submission time).
 - Add the eventual repo URL + DOI placeholder back into `CITATION.cff`,
   `codemeta.json`, and `README.md`.
-- Fill the placeholders: `<NAME>`, `<EMAIL>` in `STUDENTS.md`;
-  `<MLFLOW_URI>` in `$ROOT/env.sh` (step B.8).
+- Placeholders (filled 2026-06-10): lead contact in `STUDENTS.md` =
+  Mateusz Daniol — <daniol@agh.edu.pl>; `<MLFLOW_URI>` in `$ROOT/env.sh`
+  (step B.8) = `http://172.23.30.9:5000` (login01 ib0).
 
 ## D. Verification (the six checks)
 
