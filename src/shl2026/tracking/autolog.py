@@ -26,7 +26,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
-from . import run_context
+from . import run_context, snapshot
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +48,46 @@ def _context_tags(params_path: str | os.PathLike[str] | None) -> dict[str, str]:
         "python_env": sys.prefix,
     }
     return {k: v for k, v in tags.items() if v is not None}
+
+
+def _log_code_snapshot(mlflow: Any, dirty: bool) -> None:
+    """Attach code_snapshot/ artifacts so the run stays recreatable.
+
+    Never raises: a failed snapshot must not break a student's run.
+    """
+    import tempfile
+
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            wrote = snapshot.dump_notebook_history(td)
+            if dirty:
+                report = snapshot.create_code_snapshot(td)
+                if report is not None:
+                    wrote = True
+                    log.warning(
+                        "Uncommitted changes: this run's exact code is NOT in git. "
+                        "A snapshot (diff vs %s + %d untracked file(s)) was logged "
+                        "to the run's code_snapshot/ artifacts as a safety net — "
+                        "but commit & push before runs you want to keep "
+                        "(submit.sh refuses dirty trees).",
+                        report.git_sha[:8],
+                        len(report.untracked_included),
+                    )
+                    if report.untracked_skipped:
+                        log.warning(
+                            "code snapshot skipped %d oversized untracked file(s): %s",
+                            len(report.untracked_skipped),
+                            ", ".join(report.untracked_skipped[:5]),
+                        )
+                else:
+                    log.warning(
+                        "Working tree is dirty but no code snapshot could be taken "
+                        "(not a git checkout?); this run may not be recreatable."
+                    )
+            if wrote:
+                mlflow.log_artifacts(td, artifact_path="code_snapshot")
+    except Exception as exc:  # pragma: no cover - disk/network faults
+        log.warning("code snapshot failed (continuing): %s", exc)
 
 
 class _RunLogger:
@@ -132,6 +172,7 @@ def track(
     logger = _RunLogger(mlflow)
     try:
         logger.set_tags({**auto_tags, **(dict(tags) if tags else {})})
+        _log_code_snapshot(mlflow, dirty=auto_tags.get("git_dirty") == "true")
         if seed is not None:
             logger.log_params({"seed": seed})
         if params:

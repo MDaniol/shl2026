@@ -48,6 +48,11 @@ either fixed or accompanied by an explicit, documented amendment to this file.
   (ms / window), peak GPU memory.
 - artifacts: resolved config YAML, confusion matrices, learning curves, the
   submission validator's report, the submission file itself (small enough).
+- `code_snapshot/` (dirty trees only): `diff.patch` vs the tagged `git_sha`,
+  `untracked.tar.gz` (size-capped), `MANIFEST.json` with restore commands,
+  and in notebooks the executed-cell history — so *every* run is recreatable,
+  not only committed ones. Certification (`submit.sh`) still requires a clean
+  tree; the snapshot covers prototyping runs.
 
 ## What submission requires before send
 
