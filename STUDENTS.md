@@ -37,31 +37,32 @@ Approvals need a human, so **start today** even if you won't code until next wee
    > Athena is a GPU cluster — every session reserves an A100 and **bills the
    > team's GPU-hours the whole time it is open**. Spawn → work → **Stop the
    > session** (File → Hub Control Panel → Stop) when you take a break.
-5. **In a Jupyter terminal, set up the project** (copy-paste the whole block —
-   you install **nothing**; the team environment is shared, prebuilt in group
-   storage, and your 10 GB `$HOME` stays empty):
+5. **In a Jupyter terminal, build your environment** (one command — it creates
+   *your own* copy of the team environment from the shared lockfile, plus a
+   Jupyter kernel from it; the lock means everyone gets identical versions):
 
    ```bash
-   # Clone the team skeleton (small — only your code lives here)
+   # Clone the team skeleton (your code + the shared spec live here)
    git clone https://github.com/MDaniol/shl2026.git && cd shl2026
 
-   # Activate the team environment: Python + all libraries + the shared
-   # embedding cache + the shared MLflow leaderboard, in one line.
-   source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
+   # Build YOUR env (on $SCRATCH) from the shared lock + register a kernel:
+   ./scripts/setup_env.sh
 
-   # Make every future session (and batch job) do it automatically:
+   # For terminals & batch jobs, auto-activate it (notebooks use the kernel):
    echo 'source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"' >> ~/.bashrc
-
-   # One-time: register the team env as a Jupyter kernel (so notebooks can
-   # import shl2026 and reach the team leaderboard — kernels don't read env.sh)
-   ./scripts/register_kernel.sh
    ```
 
-   > Don't build your own venv on `$HOME` — it's only 10 GB and fills up fast.
-   > Missing a package? See *Need an extra library?* in Part 2.
+   > **First time only:** restart your server so JupyterHub sees the new kernel —
+   > **File → Hub Control Panel → Stop My Server**, then **Start**. Then pick
+   > **"SHL 2026"** as the notebook kernel.
+
+   > It's **your** env: `uv pip install` anything you like into it without
+   > affecting anyone else. It lives on `$SCRATCH` (keeps `$HOME` free) — if it's
+   > ever auto-purged, rebuild with `./scripts/setup_env.sh`. Want a package in
+   > the *shared* spec? See *Need an extra library?* in Part 2.
 6. **First run** — in a notebook (copy `notebooks/template_experiment.ipynb`
    into `notebooks/<your-name>/` first, then pick the kernel **Kernel → Change
-   Kernel → "SHL 2026 (team)"**):
+   Kernel → "SHL 2026"**):
 
    ```python
    from shl2026 import embeddings, make_head, evaluate, track, leaderboard
@@ -145,6 +146,10 @@ Your idea is the `make_head(...)` line (`list_heads()` shows the menu) and
 anything you do to `train.X` before `.fit` (PCA, normalisation, concatenating
 FMs, …). Everything else is plumbing.
 
+> Every function's signature and return type — plus how to log from a
+> hand-written training loop (PyTorch etc.) — is in
+> [`docs/API.md`](docs/API.md).
+
 **Notebook or script — your choice.** A plain `my_experiment.py` with the same
 code is just as good: keep it in `notebooks/<your-name>/` and run it from the
 JupyterHub terminal (`python my_experiment.py`). Never run computation on a
@@ -212,33 +217,22 @@ ablation. **Claim a lane in [`IDEAS.md`](IDEAS.md) before sinking a day in**, so
 
 ### Need an extra library?
 
-Two paths — use both at once:
+Your env is your own — just install into it:
 
-1. **Tell the lead (the default).** It's one command on their side; the package
-   lands in the shared env and gets pinned in `pyproject.toml`, so everyone has
-   it and every result stays reproducible. Usually same-day.
-2. **Don't wait — self-serve on `$SCRATCH`** (never `$HOME`):
+```bash
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates your env
+uv pip install <package>                                   # into YOUR env only
+```
 
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh   # once; uv itself is tiny
-   export UV_CACHE_DIR="$SCRATCH/uv-cache"
-   uv venv "$SCRATCH/venvs/shl2026" \
-     --python "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/venv/bin/python"
-   cd ~/shl2026 && ln -sfn "$SCRATCH/venvs/shl2026" .venv
-   source .venv/bin/activate     # your packages win; the team env vars stay
-   uv pip install -e ".[dev]" <your-package>
-   ```
+Restart the notebook kernel to pick it up. Nobody else is affected.
 
-   `scripts/student_job.sbatch` automatically activates this `.venv` on top of
-   the team env, so batch jobs just work. `$SCRATCH` is purged (files >30
-   days) — if your venv vanishes, rebuilding takes two minutes.
-
-**The promotion rule.** A run from a personal venv is *provisional*: the team
-container can't regenerate it, so it can't be submitted. Every run is tagged
-with the env that produced it (`python_env` in MLflow), so nobody has to
-remember. When your number is worth keeping: tell the lead the run + the
-packages → they go into the shared env → re-run once in the team env (it's
-seconds) → now it's real.
+**The promotion rule.** That install is local to you, so a run that needs it is
+*provisional* — the submission container, built from the shared lock, can't
+reproduce it (every run is tagged with its `python_env`, so nobody has to
+remember). To make it count: tell the lead the package; they run `uv add
+<package>` and commit the new `uv.lock`; then `git pull && ./scripts/setup_env.sh`
+rebuilds your env on the locked versions and you re-run. Now it's reproducible
+and submittable.
 
 ## When your result is good enough to submit
 
@@ -252,9 +246,10 @@ regenerates its predictions in the container, and submits one
 - **Portal won't let me register** → use the AGH/institutional login option.
 - **"Permission denied" pushing** → the repo is public to read, but you need
   write access to push: give the lead your GitHub username.
-- **`leaderboard()` shows only my runs** (or `ModuleNotFoundError: shl2026`) →
-  you haven't sourced the team `env.sh` in this session (Part 1, step 5 —
-  add it to `~/.bashrc`).
+- **`leaderboard()` shows only my runs, or `ModuleNotFoundError: shl2026`** →
+  in a notebook: you're not on the **SHL 2026** kernel — pick it (Kernel →
+  Change Kernel). In a terminal/batch: you haven't `source`d `env.sh` this
+  session (it's in `~/.bashrc` after step 5).
 - **`FileNotFoundError: no cached embeddings for fm=...`** → that FM isn't
   extracted yet; `list_available()` shows what is, `"synthetic"` always works.
 - **Batch job says `can't open file: No such file or directory`** for a file
@@ -264,9 +259,12 @@ regenerates its predictions in the container, and submits one
   (it's on `$HOME`, which every node sees).
 - **Notebook: `ImportError: … zmq Cython backend … not compiled`** (or other
   ipykernel/jupyter import errors) → cluster modules put a system Python on
-  `PYTHONPATH`, shadowing the team venv. `unset PYTHONPATH` (the current
-  `env.sh` already does), then re-run `./scripts/register_kernel.sh` and pick
-  the **SHL 2026 (team)** kernel.
+  `PYTHONPATH`, shadowing your env. Rebuild + re-register with
+  `./scripts/setup_env.sh`, restart the server, and pick the **SHL 2026** kernel.
+- **`SHL 2026` isn't in the kernel list, or it says "connecting" then
+  disconnects** → JupyterHub only reads kernels when the server *starts*, so it
+  hasn't picked up the one you built. **File → Hub Control Panel → Stop My
+  Server → Start**, then reselect the kernel.
 - **Disk quota exceeded in `$HOME`** → something heavy landed in your 10 GB
   home (a venv, caches, data). Keep `$HOME` to code; the team env and cache
   live in group storage (`hpc-fs` shows your usage).
