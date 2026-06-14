@@ -84,6 +84,7 @@ pytest -q                                # CPU smoke
    # SHL 2026 team environment — students just `source` this (STUDENTS.md).
    export SHL_EMB_CACHE="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/data/embeddings"
    export MLFLOW_TRACKING_URI="<MLFLOW_URI>"   # lead fills in after step 8
+   unset PYTHONPATH   # isolate the 3.12 venv from LMOD modules' system py3.13 packages
    source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/venv/bin/activate"
    EOF
 
@@ -97,6 +98,13 @@ pytest -q                                # CPU smoke
               import os; print(m(os.environ['SHL_EMB_CACHE']))"
    chmod -R g+rX "$SHL_EMB_CACHE"
    ```
+
+   `ipykernel` is pinned in `[dev]`, so the install above already includes it;
+   each student then turns the shared venv into a notebook kernel once with
+   `./scripts/register_kernel.sh` (STUDENTS.md) — JupyterHub kernels don't read
+   `env.sh`, so this is what lets notebooks `import shl2026` and reach MLflow.
+   (Venv predates the pin? `source "$ROOT/venv/bin/activate" && uv pip install
+   ipykernel && deactivate && chmod -R g+rX "$ROOT/venv"`.)
 
    **Adding a package later** (student request — aim for same-day):
 

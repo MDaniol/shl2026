@@ -52,6 +52,7 @@ dev = [
   "mypy>=1.10",
   "pre-commit>=3.7",
   "nbstripout>=0.7",
+  "ipykernel>=6.29",   # registers the venv (shared or personal) as a Jupyter kernel
 ]
 
 [project.scripts]

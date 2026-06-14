@@ -51,12 +51,17 @@ Approvals need a human, so **start today** even if you won't code until next wee
 
    # Make every future session (and batch job) do it automatically:
    echo 'source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"' >> ~/.bashrc
+
+   # One-time: register the team env as a Jupyter kernel (so notebooks can
+   # import shl2026 and reach the team leaderboard — kernels don't read env.sh)
+   ./scripts/register_kernel.sh
    ```
 
    > Don't build your own venv on `$HOME` — it's only 10 GB and fills up fast.
    > Missing a package? See *Need an extra library?* in Part 2.
 6. **First run** — in a notebook (copy `notebooks/template_experiment.ipynb`
-   into `notebooks/<your-name>/` first):
+   into `notebooks/<your-name>/` first, then pick the kernel **Kernel → Change
+   Kernel → "SHL 2026 (team)"**):
 
    ```python
    from shl2026 import embeddings, make_head, evaluate, track, leaderboard
@@ -257,6 +262,11 @@ regenerates its predictions in the container, and submits one
   Your job runs on a *different machine* that has its own empty `/tmp`. Keep
   scripts where STUDENTS.md puts them — `notebooks/<your-name>/` in the repo
   (it's on `$HOME`, which every node sees).
+- **Notebook: `ImportError: … zmq Cython backend … not compiled`** (or other
+  ipykernel/jupyter import errors) → cluster modules put a system Python on
+  `PYTHONPATH`, shadowing the team venv. `unset PYTHONPATH` (the current
+  `env.sh` already does), then re-run `./scripts/register_kernel.sh` and pick
+  the **SHL 2026 (team)** kernel.
 - **Disk quota exceeded in `$HOME`** → something heavy landed in your 10 GB
   home (a venv, caches, data). Keep `$HOME` to code; the team env and cache
   live in group storage (`hpc-fs` shows your usage).
