@@ -91,7 +91,8 @@ need Athena access + the SSH key from step 3, nothing else.
 
 1. `ssh <your-plgrid-login>@athena.cyfronet.pl` — you land on a **login node**:
    fine for setup, editing, and submitting jobs, **never for computation**.
-2. Do step 5 above exactly as written (clone + `source …/env.sh` → `~/.bashrc`).
+2. Do step 5 above exactly as written (clone → `./scripts/setup_env.sh` → the
+   `~/.bashrc` line). No notebook kernel needed on this path.
 3. Put your experiment in a plain script — `notebooks/<your-name>/exp.py` with
    the code from Part 2 below (the `print(...)` lines are what you'll see in
    the job log).

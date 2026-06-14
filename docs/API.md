@@ -69,8 +69,9 @@ Everything you vary is the `make_head(...)` line and whatever you do to
 ## Logging: `track()` and the `run` object
 
 `track(...)` opens **one MLflow run** and hands you a `run` logger. You don't
-build the MLflow run yourself, and you don't pass URIs around — sourcing the
-team `env.sh` sets `MLFLOW_TRACKING_URI`, and `track` reads it.
+build the MLflow run yourself, and you don't pass URIs around — the **SHL 2026**
+kernel (notebooks) or `env.sh` (terminals/batch) sets `MLFLOW_TRACKING_URI`, and
+`track` reads it.
 
 **What it captures for free** (as run tags, zero effort): `git_sha`,
 `git_dirty`, `container_sha256`, `slurm_job_id`, `helios_node`, `plgrid_grant`,
@@ -91,8 +92,9 @@ whole reason a one-line `track()` is enough to certify a run later.
 
 **If MLflow is unreachable** (laptop, server down) `track` prints a warning and
 yields a **no-op** `run` — your code still runs, nothing is logged. So an empty
-or "only my runs" `leaderboard()` almost always means `env.sh` wasn't sourced in
-this shell/kernel, not a bug. See `STUDENTS.md` → Troubleshooting.
+or "only my runs" `leaderboard()` almost always means you're on the wrong kernel
+(notebook) or didn't `source env.sh` (terminal/batch), not a bug. See
+`STUDENTS.md` → Troubleshooting.
 
 ## Integrating a custom training loop
 
