@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
-# Register a venv as a Jupyter kernel for THIS user, with the team env baked in.
+# Register a venv as a Jupyter kernel for THIS user, via a launcher wrapper that
+# sanitizes the environment.
 #
-# Why: JupyterHub kernels do NOT inherit your shell (no env.sh), and the default
-# kernel isn't the team venv — so notebooks can't `import shl2026` and don't see
-# MLFLOW_TRACKING_URI. This makes a kernel that runs the team venv's Python AND
-# carries the shared cache + MLflow URI, so notebooks "just work".
+# Why a wrapper (not just a kernelspec "env" block): JupyterHub loads LMOD
+# modules that export PYTHONPATH/PYTHONHOME pointing at a system Python; those
+# shadow the team's 3.12 venv and crash the kernel at startup. A kernelspec
+# "env" block can only SET vars (so it can't remove PYTHONHOME); a wrapper
+# script CAN unset them, then exec the real kernel in a clean environment.
 #
-# Run once, in a terminal:
-#   ./scripts/register_kernel.sh                      # shared team venv -> "SHL 2026 (team)"
-#   ./scripts/register_kernel.sh "$SCRATCH/venvs/mine" mine   # personal venv -> "SHL 2026 (mine)"
+# Run once, in a terminal (a login node, or a Jupyter terminal):
+#   ./scripts/register_kernel.sh                              # shared team venv -> "SHL 2026 (team)"
+#   ./scripts/register_kernel.sh "$SCRATCH/venvs/mine" mine   # personal venv    -> "SHL 2026 (mine)"
+#
+# If you run it INSIDE a running JupyterHub session, restart the server after
+# (File -> Hub Control Panel -> Stop My Server, then Start) so it sees the new
+# kernel. Registering it before you spawn a session needs no restart.
 set -euo pipefail
 
 ROOT="${PLG_GROUPS_STORAGE:?must be on the cluster}/plggmhealth/shl2026"
 
-# JupyterHub loads LMOD modules that put system py3.13 site-packages on
-# PYTHONPATH; they shadow this 3.12 venv and crash imports (e.g. pyzmq's Cython
-# backend). Clear it so every python call below uses the venv alone.
-unset PYTHONPATH
+# Clear the LMOD-polluted vars so the python calls below use the venv alone.
+unset PYTHONPATH PYTHONHOME PYTHONSTARTUP
 
 VENV="${1:-$ROOT/venv}"           # which venv to expose as a kernel
 SUFFIX="${2:-team}"               # kernel label suffix: team | mine | ...
@@ -35,27 +39,38 @@ PY="$VENV/bin/python"
   exit 1
 }
 
-# The env every kernel of this venv should carry (so the kernel is self-sufficient).
+# The env every kernel of this venv should carry (so notebooks need no env.sh).
 CACHE="$ROOT/data/embeddings"
 URI_FILE="$ROOT/mlflow_uri"
 if [ -f "$URI_FILE" ]; then read -r URI < "$URI_FILE"; else URI="http://172.23.30.9:5000"; fi
 
-# 1) Install the kernelspec (its argv points at this venv's Python).
+# 1) Install the kernelspec, then find where it landed.
 "$PY" -m ipykernel install --user --name "$NAME" --display-name "$DISPLAY"
-
-# 2) Bake the team env into the kernelspec so notebooks need no source/env.sh.
 KDIR="$("$PY" -c "from jupyter_client.kernelspec import KernelSpecManager as K; print(K().get_kernel_spec('$NAME').resource_dir)")"
-"$PY" - "$KDIR/kernel.json" "$URI" "$CACHE" <<'PY'
+
+# 2) Write a launcher that strips the polluting env, sets the team env, then
+#    execs the kernel. (A wrapper can unset PYTHONHOME; a kernelspec env can't.)
+cat > "$KDIR/launch.sh" <<EOF
+#!/usr/bin/env bash
+unset PYTHONPATH PYTHONHOME PYTHONSTARTUP
+export MLFLOW_TRACKING_URI="$URI"
+export SHL_EMB_CACHE="$CACHE"
+exec "$PY" -m ipykernel_launcher "\$@"
+EOF
+chmod +x "$KDIR/launch.sh"
+
+# 3) Point the kernelspec at the launcher.
+"$PY" - "$KDIR/kernel.json" "$KDIR/launch.sh" <<'PY'
 import json, sys
-path, uri, cache = sys.argv[1:4]
-spec = json.load(open(path))
-spec.setdefault("env", {}).update(
-    {"PYTHONPATH": "", "MLFLOW_TRACKING_URI": uri, "SHL_EMB_CACHE": cache}
-)
-json.dump(spec, open(path, "w"), indent=1)
-print("baked env into", path, "->", spec["env"])
+kj, launch = sys.argv[1:3]
+spec = json.load(open(kj))
+spec["argv"] = [launch, "-f", "{connection_file}"]
+json.dump(spec, open(kj, "w"), indent=1)
+print("argv ->", spec["argv"])
 PY
 
 echo
 echo "Registered '$DISPLAY'  (python: $PY)"
-echo "In Jupyter: Kernel -> Change Kernel -> '$DISPLAY'."
+echo "If you ran this inside a running JupyterHub session, restart it"
+echo "  (File -> Hub Control Panel -> Stop My Server, then Start)."
+echo "Then: Kernel -> Change Kernel -> '$DISPLAY'."
