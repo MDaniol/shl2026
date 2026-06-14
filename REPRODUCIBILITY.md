@@ -44,7 +44,7 @@ either fixed or accompanied by an explicit, documented amendment to this file.
 - params: full Hydra-resolved YAML, `params.yaml` hash, foundation-model id +
   HF revision SHA, all seeds.
 - tags: `git_sha`, `git_dirty` (must be `false` for any release run),
-  `container_sha256`, `slurm_job_id`, `helios_node`, `plgrid_grant`,
+  `container_sha256`, `slurm_job_id`, `node`, `plgrid_grant`,
   `params_sha256`, `student`, and `python_env` — the last identifies which
   environment produced the run; a release run must come from the locked team
   env (the container), not a student's personal `$SCRATCH` env.

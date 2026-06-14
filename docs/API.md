@@ -74,7 +74,7 @@ kernel (notebooks) or `env.sh` (terminals/batch) sets `MLFLOW_TRACKING_URI`, and
 `track` reads it.
 
 **What it captures for free** (as run tags, zero effort): `git_sha`,
-`git_dirty`, `container_sha256`, `slurm_job_id`, `helios_node`, `plgrid_grant`,
+`git_dirty`, `container_sha256`, `slurm_job_id`, `node`, `plgrid_grant`,
 `params_sha256`, `student`, `python_env`. On a **dirty tree** it also attaches a
 `code_snapshot/` artifact (diff vs HEAD + untracked files + executed notebook
 cells) so even an uncommitted number stays recreatable. This provenance is the

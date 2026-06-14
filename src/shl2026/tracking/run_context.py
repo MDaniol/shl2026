@@ -22,7 +22,7 @@ class RunContext:
     git_dirty: bool
     container_sha256: str | None
     slurm_job_id: str | None
-    helios_node: str
+    node: str
     plgrid_grant: str | None
     params_sha256: str | None
 
@@ -48,7 +48,7 @@ def collect(params_path: str | os.PathLike[str] | None = "params.yaml") -> RunCo
         git_dirty=git_dirty,
         container_sha256=os.environ.get("SHL_SIF_SHA256"),
         slurm_job_id=os.environ.get("SLURM_JOB_ID"),
-        helios_node=socket.gethostname(),
+        node=socket.gethostname(),
         plgrid_grant=os.environ.get("PLGRID_GRANT"),
         params_sha256=params_sha,
     )

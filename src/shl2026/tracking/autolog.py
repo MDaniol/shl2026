@@ -38,7 +38,7 @@ def _context_tags(params_path: str | os.PathLike[str] | None) -> dict[str, str]:
         "git_dirty": str(ctx.git_dirty).lower(),
         "container_sha256": ctx.container_sha256,
         "slurm_job_id": ctx.slurm_job_id,
-        "helios_node": ctx.helios_node,
+        "node": ctx.node,
         "plgrid_grant": ctx.plgrid_grant,
         "params_sha256": ctx.params_sha256,
         "student": os.environ.get("USER") or os.environ.get("USERNAME"),

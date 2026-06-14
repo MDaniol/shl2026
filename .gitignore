@@ -62,7 +62,7 @@ containers/*.sif
 containers/*.tar
 containers/_build/
 
-# --- MLflow local artefacts (server-side store lives on Helios) ---
+# --- MLflow local artefacts (the team server-side store lives on Athena) ---
 mlruns/
 mlflow.db
 
