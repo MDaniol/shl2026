@@ -7,8 +7,8 @@ either fixed or accompanied by an explicit, documented amendment to this file.
 ## The contract
 
 > Given the tuple
-> **(git SHA × container SHA-256 × `MANIFEST.sha256` × DVC pipeline hashes ×
-> `params.yaml` hash)**,
+> **(git SHA × `uv.lock` × container SHA-256 × `MANIFEST.sha256` × DVC pipeline
+> hashes × `params.yaml` hash)**,
 > running `dvc repro format_submission` inside the named Apptainer image on
 > Athena MUST produce a `teamName_predictions.txt` whose SHA-256 matches the
 > one logged in the corresponding MLflow run, modulo the documented
@@ -19,6 +19,7 @@ either fixed or accompanied by an explicit, documented amendment to this file.
 | Component                   | Where it lives                                                      | Who writes it                |
 |-----------------------------|---------------------------------------------------------------------|------------------------------|
 | git SHA                     | `.git`                                                              | every commit                 |
+| `uv.lock`                   | repo root — the pinned env the container *and* student envs build from | `uv lock` (lead)          |
 | container SHA-256           | `containers/shl2026_<gitsha>.sif` + tag on the GitHub release       | `scripts/build_container.sh` |
 | `MANIFEST.sha256`           | `$PLG_GROUPS_STORAGE/<GRANT>/shl2026/data/raw/MANIFEST.sha256`      | `scripts/verify_data.py`     |
 | DVC pipeline hashes         | `dvc.lock`                                                          | `dvc repro`                  |
@@ -43,7 +44,10 @@ either fixed or accompanied by an explicit, documented amendment to this file.
 - params: full Hydra-resolved YAML, `params.yaml` hash, foundation-model id +
   HF revision SHA, all seeds.
 - tags: `git_sha`, `git_dirty` (must be `false` for any release run),
-  `container_sha256`, `slurm_job_id`, `helios_node`, `plgrid_grant`.
+  `container_sha256`, `slurm_job_id`, `helios_node`, `plgrid_grant`,
+  `params_sha256`, `student`, and `python_env` — the last identifies which
+  environment produced the run; a release run must come from the locked team
+  env (the container), not a student's personal `$SCRATCH` env.
 - metrics: macro-F1, per-class F1, per-user F1, per-location F1, latency
   (ms / window), peak GPU memory.
 - artifacts: resolved config YAML, confusion matrices, learning curves, the
