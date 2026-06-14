@@ -13,6 +13,7 @@ heads, on 5 s × 100 Hz inertial windows.
 | You are… | Read | What's in it |
 |---|---|---|
 | **A student joining the team** | [`STUDENTS.md`](STUDENTS.md) — **the only doc you need** | PLGrid account → first run → the daily experiment loop, end to end |
+| Looking up an SDK function | [`docs/API.md`](docs/API.md) | every `shl2026` function + return type, and how to log a custom training loop |
 | Stuck on something cluster-side | [`docs/CLUSTER.md`](docs/CLUSTER.md) | Slurm, storage, billing, debugging — the layer under `STUDENTS.md` |
 | Curious what we're actually doing | [`METHODS.md`](METHODS.md) | the scientific contract: task, data, frozen-FM approach, metric |
 | The lead, rebuilding infrastructure | [`SETUP.md`](SETUP.md) | one-time bootstrap: storage, env, MLflow server, GitHub |
