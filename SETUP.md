@@ -60,66 +60,65 @@ pytest -q                                # CPU smoke
    cd shl2026
    ```
 
-5. **Shared Python environment + `env.sh`** — built once, used by all 12
-   students. `$HOME` is only 10 GB per person, so the venv, the uv cache, and
-   the uv-managed interpreter all live **off `$HOME`** (group storage /
-   scratch). Students never run `uv`; they `source` one file.
+5. **Lock the shared spec + a reference env + `env.sh`.** Students build their
+   **own** env from the lock (`./scripts/setup_env.sh`, see `STUDENTS.md`) so
+   each can install freely without touching anyone else. The lead only: pins the
+   lock, makes a lead-only reference env (to seed the cache and build the
+   container), and writes `env.sh`.
 
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    export PATH="$HOME/.local/bin:$PATH"
-   export UV_CACHE_DIR="$SCRATCH/uv-cache"           # build cache (regenerable)
-   export UV_PYTHON_INSTALL_DIR="$ROOT/uv-python"    # interpreter the venv links to
 
-   # Canonical clone the venv installs from (editable): updating the team SDK
-   # is `git pull` here (+ re-run the install line if dependencies changed).
+   # Canonical clone; updating the team SDK is `git pull` here.
    git clone https://github.com/MDaniol/shl2026.git "$ROOT/repo"
+   cd "$ROOT/repo"
 
-   uv venv --python 3.12 "$ROOT/venv"
-   source "$ROOT/venv/bin/activate"
-   uv pip install -e "$ROOT/repo[dev]"
-   deactivate
+   # Pin the shared specification — every student's `uv sync` resolves to these
+   # EXACT versions. Commit + push so it ships with the repo.
+   uv lock
+   git add uv.lock && git commit -m "deps: lock the shared environment" && git push
 
+   # Lead-only reference env (seeds the cache, builds the container). Students do
+   # NOT use this — they each build their own on $SCRATCH (setup_env.sh).
+   export UV_CACHE_DIR="$SCRATCH/uv-cache"
+   export UV_PROJECT_ENVIRONMENT="$ROOT/venv"
+   uv sync --extra dev --python 3.12
+
+   # env.sh — sourced in terminals/SSH/batch (notebooks use the registered
+   # kernel). Clears LMOD pollution and activates each student's OWN env.
    cat > "$ROOT/env.sh" <<'EOF'
-   # SHL 2026 team environment — students just `source` this (STUDENTS.md).
    export SHL_EMB_CACHE="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/data/embeddings"
    export MLFLOW_TRACKING_URI="<MLFLOW_URI>"   # lead fills in after step 8
-   unset PYTHONPATH   # isolate the 3.12 venv from LMOD modules' system py3.13 packages
-   source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/venv/bin/activate"
+   unset PYTHONPATH PYTHONHOME PYTHONSTARTUP    # isolate the 3.12 env from LMOD system-py
+   _shl_venv="${SHL_VENV:-$SCRATCH/venvs/shl2026}"
+   [ -f "$_shl_venv/bin/activate" ] && source "$_shl_venv/bin/activate" \
+     || echo "note: no personal env at $_shl_venv — run ./scripts/setup_env.sh" >&2
+   unset _shl_venv
    EOF
+   chmod g+rX "$ROOT/env.sh"
 
-   chmod -R g+rX "$ROOT"/{venv,repo,uv-python} "$ROOT/env.sh"
-
-   # Seed the synthetic embedding cache — STUDENTS.md promises that
-   # embeddings("synthetic", ...) always works, but only tests generate it
-   # (into tmp dirs); the shared cache needs this once:
-   source "$ROOT/env.sh"
-   python -c "from shl2026.data.synthetic import make_synthetic_embedding_cache as m; \
-              import os; print(m(os.environ['SHL_EMB_CACHE']))"
-   chmod -R g+rX "$SHL_EMB_CACHE"
+   # Seed the synthetic embedding cache (uses the reference env) so
+   # embeddings("synthetic", ...) works before real embeddings exist:
+   "$ROOT/venv/bin/python" -c "from shl2026.data.synthetic import \
+     make_synthetic_embedding_cache as m; print(m('$ROOT/data/embeddings'))"
+   chmod -R g+rX "$ROOT/data/embeddings"
    ```
 
-   `ipykernel` is pinned in `[dev]`, so the install above already includes it;
-   each student then turns the shared venv into a notebook kernel once with
-   `./scripts/register_kernel.sh` (STUDENTS.md) — JupyterHub kernels don't read
-   `env.sh`, so this is what lets notebooks `import shl2026` and reach MLflow.
-   (Venv predates the pin? `source "$ROOT/venv/bin/activate" && uv pip install
-   ipykernel && deactivate && chmod -R g+rX "$ROOT/venv"`.)
-
-   **Adding a package later** (student request — aim for same-day):
+   **Adding a package** (student request — aim for same-day): change the deps
+   and re-lock, so everyone can pick it up reproducibly:
 
    ```bash
-   source "$ROOT/venv/bin/activate"
-   uv pip install <pkg>
-   # pin it: add to pyproject.toml dependencies in $ROOT/repo, commit + push
-   chmod -R g+rX "$ROOT/venv"
+   cd "$ROOT/repo"
+   uv add <pkg>                                   # updates pyproject.toml + uv.lock
+   git commit -am "deps: add <pkg>" && git push
+   uv sync --extra dev                            # refresh the reference env
    ```
 
-   Rebuild the container before the next *certified* run (`dvc repro` /
-   submission), not on every install. **Submission gate:** before regenerating
-   any winning run, check its MLflow `python_env` tag — if it isn't
-   `$ROOT/venv`, the student used a personal venv: promote the packages, have
-   them re-run in the team env, and only then certify.
+   Students get it with `git pull && ./scripts/setup_env.sh`. **Submission
+   gate:** a winning run must come from the committed `uv.lock` (its MLflow
+   provenance must match) before it's certified — a run using a package not yet
+   in the lock is provisional until the lock includes it and it's re-run.
 
 6. **DVC remote:**
 

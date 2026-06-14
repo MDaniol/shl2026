@@ -18,22 +18,16 @@
 
 set -euo pipefail
 
-# The team env.sh provides SHL_EMB_CACHE, MLFLOW_TRACKING_URI and the shared
-# venv (STUDENTS.md Part 1, step 5). A personal .venv in the submit directory
-# (see "Need an extra library?") is activated on top, so it wins on Python
-# packages while the team env vars stay.
-ENV_FOUND=0
+# env.sh sets SHL_EMB_CACHE + MLFLOW_TRACKING_URI, clears the LMOD pollution, and
+# activates YOUR env (built once by ./scripts/setup_env.sh). See STUDENTS.md.
 ENV_SH="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
-if [[ -f "$ENV_SH" ]]; then
-  source "$ENV_SH"
-  ENV_FOUND=1
+if [[ ! -f "$ENV_SH" ]]; then
+  echo "error: team env.sh not found at $ENV_SH — see STUDENTS.md" >&2
+  exit 1
 fi
-if [[ -f .venv/bin/activate ]]; then
-  source .venv/bin/activate
-  ENV_FOUND=1
-fi
-if [[ "$ENV_FOUND" -eq 0 ]]; then
-  echo "error: team env not found at $ENV_SH and no local .venv — see STUDENTS.md" >&2
+source "$ENV_SH"
+if ! python -c "import shl2026" 2>/dev/null; then
+  echo "error: shl2026 not importable — build your env: ./scripts/setup_env.sh" >&2
   exit 1
 fi
 

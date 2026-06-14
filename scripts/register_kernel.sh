@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # Register a venv as a Jupyter kernel for THIS user, via a launcher wrapper that
-# sanitizes the environment.
+# sanitizes the environment. Normally called by setup_env.sh; run it directly
+# only to register an extra env.
 #
 # Why a wrapper (not just a kernelspec "env" block): JupyterHub loads LMOD
 # modules that export PYTHONPATH/PYTHONHOME pointing at a system Python; those
-# shadow the team's 3.12 venv and crash the kernel at startup. A kernelspec
-# "env" block can only SET vars (so it can't remove PYTHONHOME); a wrapper
-# script CAN unset them, then exec the real kernel in a clean environment.
+# shadow the 3.12 venv and crash the kernel at startup. A kernelspec "env" block
+# can only SET vars (so it can't remove PYTHONHOME); a wrapper script CAN unset
+# them, then exec the real kernel in a clean environment.
 #
-# Run once, in a terminal (a login node, or a Jupyter terminal):
-#   ./scripts/register_kernel.sh                              # shared team venv -> "SHL 2026 (team)"
-#   ./scripts/register_kernel.sh "$SCRATCH/venvs/mine" mine   # personal venv    -> "SHL 2026 (mine)"
+# Usage:
+#   ./scripts/register_kernel.sh                       # your env -> "SHL 2026"
+#   ./scripts/register_kernel.sh <venv-path> [label]   # another env -> "SHL 2026 (label)"
 #
-# If you run it INSIDE a running JupyterHub session, restart the server after
-# (File -> Hub Control Panel -> Stop My Server, then Start) so it sees the new
-# kernel. Registering it before you spawn a session needs no restart.
+# If you run it inside a running JupyterHub session, restart the server after
+# (File -> Hub Control Panel -> Stop My Server, then Start) so it sees the kernel.
 set -euo pipefail
 
 ROOT="${PLG_GROUPS_STORAGE:?must be on the cluster}/plggmhealth/shl2026"
@@ -22,20 +22,18 @@ ROOT="${PLG_GROUPS_STORAGE:?must be on the cluster}/plggmhealth/shl2026"
 # Clear the LMOD-polluted vars so the python calls below use the venv alone.
 unset PYTHONPATH PYTHONHOME PYTHONSTARTUP
 
-VENV="${1:-$ROOT/venv}"           # which venv to expose as a kernel
-SUFFIX="${2:-team}"               # kernel label suffix: team | mine | ...
-if [ "$SUFFIX" = "team" ]; then
-  NAME="shl2026";          DISPLAY="SHL 2026 (team)"
+VENV="${1:-${SHL_VENV:-$SCRATCH/venvs/shl2026}}"   # which venv to expose (default: yours)
+SUFFIX="${2:-}"                                     # optional label for an extra env
+if [ -z "$SUFFIX" ]; then
+  NAME="shl2026";          DISPLAY="SHL 2026"
 else
   NAME="shl2026-$SUFFIX";  DISPLAY="SHL 2026 ($SUFFIX)"
 fi
 
 PY="$VENV/bin/python"
-[ -x "$PY" ] || { echo "no python at $PY — is the venv path right?" >&2; exit 1; }
+[ -x "$PY" ] || { echo "no python at $PY — build your env first: ./scripts/setup_env.sh" >&2; exit 1; }
 "$PY" -c "import ipykernel" 2>/dev/null || {
-  echo "ipykernel is not installed in $VENV" >&2
-  echo "  team venv : ask the lead (it's pinned in pyproject [dev])" >&2
-  echo "  personal  : uv pip install -e '.[dev]'  (includes ipykernel)" >&2
+  echo "ipykernel is not in $VENV — build your env: ./scripts/setup_env.sh" >&2
   exit 1
 }
 
