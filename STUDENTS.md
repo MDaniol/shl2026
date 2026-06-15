@@ -6,11 +6,28 @@ work. One month, 12 of us, one shared skeleton on **Athena** (ACK Cyfronet).
 ## The big idea (read this once)
 
 The challenge forbids fine-tuning the foundation models — they stay **frozen**.
-That's a gift: the only expensive, GPU-heavy step (running a FM over the ~1M
-SHL Challenge windows to get **embeddings**) is done **once by the team and
-shared**. Everything *you* prototype — the classifier head, feature transforms,
-fusion tricks — runs on those cached embeddings in **seconds**. You never touch
-the raw SHL data, the foundation models, or Docker.
+A frozen model is just a fixed function: feed it a signal window, it hands back a
+vector. **That output vector is an "embedding".**
+
+```
+ raw window (a signal)   →   [ frozen foundation model ]   →   embedding (a vector)
+ 500 samples × 9 axes            (runs once, never trained)        e.g. 512 numbers
+```
+
+Running the FM over the ~1M challenge windows is the only expensive, GPU-heavy
+step — so it's done **once** and the embeddings are **cached and shared**.
+Everything *you* prototype — the classifier head, feature transforms, fusion
+across models — runs on those cached embeddings in **seconds**.
+
+**Two lanes — most of you only ever need the first:**
+
+- **Use embeddings (everyone, from day one).** Load cached embeddings → train a
+  small classifier → see your score. You never touch the raw data, the FMs, or a
+  GPU. This is the whole inner loop, and it's what this guide is about.
+- **Extract a new FM (a few of us).** If you "own" a foundation model, you run it
+  over the windows once to *produce* its embeddings into the shared cache, so
+  everyone else can use them. Heavier (a GPU job + an FM adapter) — coordinate
+  with the lead; it's a separate, optional track.
 
 ---
 

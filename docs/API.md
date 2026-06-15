@@ -5,6 +5,29 @@ daily workflow (setup, honesty rules, submission) lives in
 [`STUDENTS.md`](../STUDENTS.md); this is just *what each function is and what it
 returns*, plus how to log from a hand-written training loop.
 
+## In plain words
+
+A foundation model turns one signal window into a list of numbers (a vector).
+That vector is an **embedding**. The team computes these once and caches them —
+you just load them:
+
+```
+ raw window (a signal)  →  [ frozen FM ]  →  embedding (the vector you load)
+```
+
+The five calls, in plain English:
+
+- **`embeddings(fm, split)`** — load the cached vectors (your `X`) and their
+  labels (`y`). Change `fm` to compare foundation models.
+- **`make_head(name)`** — make a small classifier to train on those vectors
+  (`"logreg"`, `"linear"`, `"mlp"`). Or bring your own — it's just scikit-learn.
+- **`evaluate(head, val)`** — score it on the challenge metric (macro-F1).
+- **`track(...)`** — record the run to the team server so it counts and shows up
+  for everyone.
+- **`leaderboard()`** — the team scoreboard: everyone's runs, ranked.
+
+Everything below is the precise reference for those.
+
 ## The whole inner loop
 
 ```python
