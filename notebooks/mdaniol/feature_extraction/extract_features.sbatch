@@ -17,7 +17,7 @@
 set -euo pipefail
 
 # --- paths (override via env, e.g. `PROJECT_DIR=$SCRATCH/SHL_2026 sbatch ...`) ---
-PROJECT_DIR="${PROJECT_DIR:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 DATA_DIR="${DATA_DIR:-$PROJECT_DIR/dataset_parquet}"
 OUT_DIR="${OUT_DIR:-$PROJECT_DIR/dataset_parquet_features}"
 SCRIPT_DIR="$PROJECT_DIR/notebooks/mdaniol/feature_extraction"

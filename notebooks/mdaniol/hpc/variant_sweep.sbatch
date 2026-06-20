@@ -16,7 +16,7 @@
 #SBATCH --account=plgshl26-gpu-a100
 
 set -uo pipefail
-PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
+PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 
 # (model:variant) combos. V3 (16 ch) needs a channel adapter (>10) — excluded.
 COMBOS=(mantisv2:V1 mantisv2:V2 utica:V1 utica:V2 moment-small:V1 moment-small:V2)

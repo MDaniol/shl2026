@@ -26,6 +26,9 @@ if [[ ! -f "$ENV_SH" ]]; then
   exit 1
 fi
 source "$ENV_SH"
+# env.sh activates the shared GROUP venv; override with YOUR personal env (built by
+# ./scripts/setup_env.sh) so your own pip-installed deps are visible. See STUDENTS.md.
+source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate"
 if ! python -c "import shl2026" 2>/dev/null; then
   echo "error: shl2026 not importable — build your env: ./scripts/setup_env.sh" >&2
   exit 1

@@ -14,7 +14,7 @@
 #SBATCH --account=plgshl26-gpu-a100
 
 set -euo pipefail
-PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
+PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 
 EMBS=(mantisv2_V0 utica_V0 mantis8m_V0 moment-small_V0)
 E="${EMBS[$SLURM_ARRAY_TASK_ID]}"

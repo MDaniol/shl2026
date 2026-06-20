@@ -14,7 +14,7 @@
 #SBATCH --account=plgshl26-gpu-a100
 
 set -euo pipefail
-PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
+PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 
 # one model per array index (extend freely; bump --array to match)
 MODELS=(mantisv2 utica mantis8m moment-small)
