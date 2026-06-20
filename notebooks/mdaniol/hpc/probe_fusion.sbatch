@@ -22,6 +22,7 @@ E="${EMBS[$SLURM_ARRAY_TASK_ID]}"
 source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
 source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
 cd "$PROJECT_DIR"
+bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"   # ensure data symlinks
 mkdir -p notebooks/mdaniol/modeling/logs
 echo "[$(date)] probe $E on $(hostname)"
 python notebooks/mdaniol/modeling/probe_fusion.py --emb "$E" \

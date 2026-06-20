@@ -25,7 +25,9 @@ C="${COMBOS[$SLURM_ARRAY_TASK_ID]}"; M="${C%:*}"; V="${C#*:}"
 source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
 source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
 export HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false
-cd "$PROJECT_DIR"; mkdir -p notebooks/mdaniol/modeling/logs
+cd "$PROJECT_DIR"
+bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"   # ensure data symlinks
+mkdir -p notebooks/mdaniol/modeling/logs
 
 echo "[$(date)] $M variant $V"
 python notebooks/mdaniol/modeling/extract_embeddings.py --model "$M" --variant "$V" \
