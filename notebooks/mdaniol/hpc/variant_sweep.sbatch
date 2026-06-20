@@ -8,8 +8,8 @@
 #SBATCH --job-name=shl-vsweep
 #SBATCH --array=0-5
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=8       # GPU-bound extraction (CPUs ~idle) + CPU probe; 8 balances both
+#SBATCH --mem=32G
 #SBATCH --time=02:30:00
 #SBATCH --output=notebooks/mdaniol/modeling/logs/vsweep_%A_%a.out
 #SBATCH --partition=plgrid-gpu-a100

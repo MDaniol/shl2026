@@ -5,8 +5,8 @@
 #SBATCH --job-name=shl-emb
 #SBATCH --array=0-3
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=48G
+#SBATCH --cpus-per-task=4       # pure GPU extraction (memmap streaming); CPUs only load data
+#SBATCH --mem=16G
 #SBATCH --time=02:00:00
 #SBATCH --output=notebooks/mdaniol/modeling/logs/emb_%A_%a.out
 ## --- EDIT for your allocation ---
