@@ -6,8 +6,9 @@
 #SBATCH --mem=48G
 #SBATCH --time=01:00:00
 #SBATCH --output=notebooks/mdaniol/modeling/logs/baseline_%j.out
-#SBATCH --partition=plgrid
-#SBATCH --account=plgshl26-cpu
+#SBATCH --partition=plgrid-gpu-a100
+#SBATCH --gres=gpu:1   # Athena is GPU-only
+#SBATCH --account=plgshl26-gpu-a100
 
 set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"

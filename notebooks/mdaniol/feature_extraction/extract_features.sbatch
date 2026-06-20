@@ -10,8 +10,9 @@
 #SBATCH --output=logs/feat_%A_%a.out
 #SBATCH --error=logs/feat_%A_%a.err
 ## --- EDIT for your allocation (Cyfronet Athena CPU grant) ---
-#SBATCH --account=plgshl26-cpu
-#SBATCH --partition=plgrid
+#SBATCH --account=plgshl26-gpu-a100
+#SBATCH --partition=plgrid-gpu-a100
+#SBATCH --gres=gpu:1   # Athena is GPU-only
 
 set -euo pipefail
 
