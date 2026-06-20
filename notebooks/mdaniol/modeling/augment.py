@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.spatial.transform import Rotation
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import PchipInterpolator
 
 _EPS = 1e-8
 
@@ -85,17 +85,22 @@ def jitter(x: np.ndarray, sigma_frac: float, rng) -> np.ndarray:
 
 
 def time_warp(x: np.ndarray, n_knots: int, sigma: float, rng) -> np.ndarray:
-    """Smooth cubic-spline time distortion (cadence variation). Shared warp per window."""
+    """Smooth monotonic time distortion (cadence variation). Shared warp per window.
+
+    Monotonicity is GUARANTEED for any sigma: (1) warp steps are clipped positive
+    so the cumulative knot map strictly increases, and (2) a shape-preserving
+    PCHIP interpolant (vs CubicSpline) cannot overshoot/dip between knots. This
+    rules out time-reversal artifacts (validate_augment.py covers sigma up to 0.5).
+    """
     n, c, N = x.shape
     out = np.empty_like(x)
     base = np.linspace(0, N - 1, N)
     knot_x = np.linspace(0, N - 1, n_knots + 2)
     for i in range(n):
-        warp = rng.normal(1.0, sigma, n_knots + 2)
+        warp = np.maximum(rng.normal(1.0, sigma, n_knots + 2), 1e-3)  # positive steps
         cum = np.cumsum(warp)
-        cum = (cum - cum[0]) / (cum[-1] - cum[0]) * (N - 1)   # monotonic 0..N-1
-        cs = CubicSpline(knot_x, cum)
-        t_new = np.clip(cs(base), 0, N - 1)
+        cum = (cum - cum[0]) / (cum[-1] - cum[0]) * (N - 1)   # strictly increasing 0..N-1
+        t_new = np.clip(PchipInterpolator(knot_x, cum)(base), 0, N - 1)  # monotone interp
         for ch in range(c):
             out[i, ch] = np.interp(t_new, base, x[i, ch])
     return out
