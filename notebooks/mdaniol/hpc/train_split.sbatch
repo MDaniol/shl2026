@@ -8,9 +8,9 @@
 # Needs the handcrafted features (extract_features.sbatch) to exist first.
 #
 #SBATCH --job-name=shl-split
-#SBATCH --cpus-per-task=8       # CPU-only work; smaller footprint backfills faster
+#SBATCH --cpus-per-task=16      # per-GPU fair share; ~2x faster LightGBM, still backfills
 #SBATCH --mem=32G
-#SBATCH --time=00:40:00         # short walltime -> scheduler backfills into gaps
+#SBATCH --time=01:00:00         # headroom for 3 multiclass LightGBM fits + robustness sweep
 #SBATCH --output=notebooks/mdaniol/modeling/logs/split_%j.out
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --gres=gpu:1            # Athena is GPU-only (job doesn't use the GPU)
