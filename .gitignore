@@ -91,3 +91,19 @@ secrets/
 # --- Slurm/run artifacts ---
 slurm-*.out
 runs/
+
+# local uv venv for feature extraction
+SHL-local/
+dataset_parquet_features/
+embeddings/
+
+# --- raw + processed data dirs (large, never commit) ---
+/dataset/
+/dataset_parquet/
+
+# --- regenerable artifacts / submissions / downloaded papers (not for VCS) ---
+*.joblib
+*_predictions*.txt
+notebooks/mdaniol/modeling/logs/
+notebooks/mdaniol/modeling/artifacts/
+notebooks/mdaniol/LITERATURE/
