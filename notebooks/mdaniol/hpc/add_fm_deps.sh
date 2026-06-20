@@ -17,8 +17,12 @@ python -c "import shl2026" 2>/dev/null || {
   echo "build your env first:  ./scripts/setup_env.sh" >&2; exit 1; }
 echo "uv cache: ${UV_CACHE_DIR:?env.sh must export UV_CACHE_DIR (on \$SCRATCH)}"
 
+# torch: the default PyPI wheel is built for a CUDA newer than Athena's A100
+# driver (max CUDA 12.8) -> "NVIDIA driver too old". Pin a cu124 build (needs
+# driver >=12.4, we have 12.8). Separate index, so it doesn't shadow PyPI below.
+uv pip install --reinstall torch --index-url https://download.pytorch.org/whl/cu124
 # Pinned: newer transformers/huggingface_hub break mantis-tsfm's from_pretrained.
-uv pip install torch "transformers==4.44.2" "huggingface_hub==0.25.2" "tokenizers>=0.19,<0.20" \
+uv pip install "transformers==4.44.2" "huggingface_hub==0.25.2" "tokenizers>=0.19,<0.20" \
                safetensors einops datasets lightgbm tsfel statsmodels pycatch22
 # momentfm + mantis-tsfm pin an unbuildable old transformers -> skip their deps.
 uv pip install --no-deps momentfm mantis-tsfm
