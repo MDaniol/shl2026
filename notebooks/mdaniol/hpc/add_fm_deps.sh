@@ -12,6 +12,13 @@ source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activate YOUR env
 python -c "import shl2026" 2>/dev/null || {
   echo "build your env first:  ./scripts/setup_env.sh" >&2; exit 1; }
 
+# Keep the uv cache + temp OFF $HOME (10 GB quota) — torch alone overflows it.
+# Mirror scripts/setup_env.sh: cache on $SCRATCH (same FS as the env -> cheap hardlinks).
+: "${SCRATCH:?must be set on the cluster}"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$SCRATCH/uv-cache}"
+export TMPDIR="${TMPDIR:-$SCRATCH/tmp}"; mkdir -p "$UV_CACHE_DIR" "$TMPDIR"
+echo "uv cache: $UV_CACHE_DIR"
+
 # Pinned: newer transformers/huggingface_hub break mantis-tsfm's from_pretrained.
 uv pip install torch "transformers==4.44.2" "huggingface_hub==0.25.2" "tokenizers>=0.19,<0.20" \
                safetensors einops datasets lightgbm tsfel statsmodels pycatch22
