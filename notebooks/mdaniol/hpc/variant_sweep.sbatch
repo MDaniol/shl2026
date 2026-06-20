@@ -22,7 +22,8 @@ PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
 COMBOS=(mantisv2:V1 mantisv2:V2 utica:V1 utica:V2 moment-small:V1 moment-small:V2)
 C="${COMBOS[$SLURM_ARRAY_TASK_ID]}"; M="${C%:*}"; V="${C#*:}"
 
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
+source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
 export HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false
 cd "$PROJECT_DIR"; mkdir -p notebooks/mdaniol/modeling/logs
 

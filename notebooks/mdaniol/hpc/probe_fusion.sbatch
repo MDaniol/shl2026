@@ -19,7 +19,8 @@ PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
 EMBS=(mantisv2_V0 utica_V0 mantis8m_V0 moment-small_V0)
 E="${EMBS[$SLURM_ARRAY_TASK_ID]}"
 
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
+source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
 echo "[$(date)] probe $E on $(hostname)"

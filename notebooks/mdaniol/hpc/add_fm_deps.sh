@@ -8,7 +8,11 @@
 #   bash notebooks/mdaniol/hpc/add_fm_deps.sh    # then add the FM stack
 set -euo pipefail
 
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates env + sets UV_CACHE_DIR/TMPDIR on $SCRATCH
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR/TMPDIR on $SCRATCH
+# env.sh activates the shared GROUP venv; override it with YOUR personal env so
+# these deps land in $SCRATCH/venvs/shl2026, NOT the group env.
+source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate"
+echo "installing into: ${VIRTUAL_ENV:?personal env not active}"
 python -c "import shl2026" 2>/dev/null || {
   echo "build your env first:  ./scripts/setup_env.sh" >&2; exit 1; }
 echo "uv cache: ${UV_CACHE_DIR:?env.sh must export UV_CACHE_DIR (on \$SCRATCH)}"

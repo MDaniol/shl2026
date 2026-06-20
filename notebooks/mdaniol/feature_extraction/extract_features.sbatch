@@ -30,7 +30,8 @@ REL="${INPUTS[$SLURM_ARRAY_TASK_ID]}"
 SPLIT="${REL%%/*}"
 LOC="${REL##*/}"
 
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
+source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 mkdir -p "$OUT_DIR/$SPLIT" "$SCRIPT_DIR/logs"

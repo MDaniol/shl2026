@@ -12,7 +12,8 @@
 
 set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
+source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
 M=notebooks/mdaniol/modeling

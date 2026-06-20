@@ -20,7 +20,8 @@ PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
 MODELS=(mantisv2 utica mantis8m moment-small)
 M="${MODELS[$SLURM_ARRAY_TASK_ID]}"
 
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
+source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
 export HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
