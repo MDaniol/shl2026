@@ -114,6 +114,9 @@ def main() -> int:
     ap.add_argument("--emb-dir", type=Path, default=root / "embeddings")
     ap.add_argument("--chunk-size", type=int, default=4000)
     ap.add_argument("--tf-batch", type=int, default=128)
+    ap.add_argument("--limit", type=int, default=0,
+                    help="cap windows per file for a smoke test (0 = all). Use a "
+                         "throwaway --emb-dir so the partial output isn't cached.")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available()
                     else ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
@@ -131,9 +134,16 @@ def main() -> int:
             print(f"  skip {outp.name} (exists)", flush=True); continue
         pf = pq.ParquetFile(src)
         n_rows = pf.metadata.num_rows
+        if args.limit:
+            n_rows = min(n_rows, args.limit)
         mm, pos, t0 = None, 0, time.time()
         for batch in pf.iter_batches(batch_size=args.chunk_size):
+            if pos >= n_rows:
+                break
             acc, gyr, mag = (stack_axes(batch, p) for p in ("Acc", "Gyr", "Mag"))
+            if pos + len(acc) > n_rows:          # trim final batch to the limit
+                k = n_rows - pos
+                acc, gyr, mag = acc[:k], gyr[:k], mag[:k]
             lib = raw_lib(acc, gyr, mag) if args.variant == "V0" \
                 else fi.build_channel_library(acc, gyr, mag)
             X, _ = packer(lib, args.variant)
