@@ -12,8 +12,7 @@
 
 set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
-VENV="${VENV:-$PROJECT_DIR/SHL-local}"
-source "$VENV/bin/activate"
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
 M=notebooks/mdaniol/modeling

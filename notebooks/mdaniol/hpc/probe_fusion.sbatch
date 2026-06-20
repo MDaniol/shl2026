@@ -15,12 +15,11 @@
 
 set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
-VENV="${VENV:-$PROJECT_DIR/SHL-local}"
 
 EMBS=(mantisv2_V0 utica_V0 mantis8m_V0 moment-small_V0)
 E="${EMBS[$SLURM_ARRAY_TASK_ID]}"
 
-source "$VENV/bin/activate"
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
 echo "[$(date)] probe $E on $(hostname)"

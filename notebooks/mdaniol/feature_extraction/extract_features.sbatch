@@ -20,7 +20,6 @@ set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 DATA_DIR="${DATA_DIR:-$PROJECT_DIR/dataset_parquet}"
 OUT_DIR="${OUT_DIR:-$PROJECT_DIR/dataset_parquet_features}"
-VENV="${VENV:-$PROJECT_DIR/SHL-local}"
 SCRIPT_DIR="$PROJECT_DIR/notebooks/mdaniol/feature_extraction"
 
 # --- index → input file (9 tasks: 4 train + 4 validation + 1 test) ---
@@ -31,7 +30,7 @@ REL="${INPUTS[$SLURM_ARRAY_TASK_ID]}"
 SPLIT="${REL%%/*}"
 LOC="${REL##*/}"
 
-source "$VENV/bin/activate"
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 mkdir -p "$OUT_DIR/$SPLIT" "$SCRIPT_DIR/logs"

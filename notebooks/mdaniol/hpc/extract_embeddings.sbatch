@@ -15,13 +15,12 @@
 
 set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
-VENV="${VENV:-$PROJECT_DIR/SHL-local}"
 
 # one model per array index (extend freely; bump --array to match)
 MODELS=(mantisv2 utica mantis8m moment-small)
 M="${MODELS[$SLURM_ARRAY_TASK_ID]}"
 
-source "$VENV/bin/activate"
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
 export HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs

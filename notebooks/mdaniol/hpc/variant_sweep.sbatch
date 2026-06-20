@@ -17,13 +17,12 @@
 
 set -uo pipefail
 PROJECT_DIR="${PROJECT_DIR:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026}"
-VENV="${VENV:-$PROJECT_DIR/SHL-local}"
 
 # (model:variant) combos. V3 (16 ch) needs a channel adapter (>10) — excluded.
 COMBOS=(mantisv2:V1 mantisv2:V2 utica:V1 utica:V2 moment-small:V1 moment-small:V2)
 C="${COMBOS[$SLURM_ARRAY_TASK_ID]}"; M="${C%:*}"; V="${C#*:}"
 
-source "$VENV/bin/activate"
+source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # activates YOUR env (team lock + your FM add-ons)
 export HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false
 cd "$PROJECT_DIR"; mkdir -p notebooks/mdaniol/modeling/logs
 
