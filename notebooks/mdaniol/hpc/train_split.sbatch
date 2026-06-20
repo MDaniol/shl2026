@@ -8,12 +8,12 @@
 # Needs the handcrafted features (extract_features.sbatch) to exist first.
 #
 #SBATCH --job-name=shl-split
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=64G
-#SBATCH --time=02:00:00
+#SBATCH --cpus-per-task=8       # CPU-only work; smaller footprint backfills faster
+#SBATCH --mem=32G
+#SBATCH --time=00:40:00         # short walltime -> scheduler backfills into gaps
 #SBATCH --output=notebooks/mdaniol/modeling/logs/split_%j.out
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --gres=gpu:1            # Athena is GPU-only
+#SBATCH --gres=gpu:1            # Athena is GPU-only (job doesn't use the GPU)
 #SBATCH --account=plgshl26-gpu-a100
 
 set -euo pipefail
