@@ -79,6 +79,12 @@ def main() -> int:
     ap.add_argument("--feat-dir", type=Path, default=root / "dataset_parquet_features")
     ap.add_argument("--split", type=Path, default=here / "artifacts" / "val_split.npy")
     ap.add_argument("--out", type=Path, default=here / "AGH_predictions_v3.txt")
+    ap.add_argument("--aug-train-dir", type=Path, default=None,
+                    help="dir of Branch-A augmented TRAIN feature parquets "
+                         "(augment_features.py --branch A). Adds a +AUG held-out row.")
+    ap.add_argument("--use-aug-for-submission", action="store_true",
+                    help="include augmented copies in the Phase-B final model "
+                         "(decide AFTER seeing the Phase-A +AUG row).")
     args = ap.parse_args(); t0 = time.time()
 
     train = load_split(args.feat_dir, "train")
@@ -108,8 +114,26 @@ def main() -> int:
     rep_cal = class_report(ytest, pred_cal); print_report("User1 + val-fit + calib", rep_cal)
     held = rep_cal["macro_f1"]
 
+    # + train-time augmentation (Branch A: scale/jitter/time-warp on User-1) ----
+    rep_aug, Xaug, yaug = None, None, None
+    if args.aug_train_dir is not None:
+        aug_df = load_split(args.aug_train_dir, "")  # aug-train-dir/<LOC>.parquet
+        Xaug, yaug = aug_df[feat].to_numpy(np.float32), aug_df["label"].to_numpy()
+        Xfit_a = np.concatenate([Xfit, Xaug]); yfit_a = np.concatenate([yfit, yaug])
+        clf_a = fit_lgb(Xfit_a, yfit_a, Xtune, ytune)
+        w_a = calibrate(clf_a.predict_proba(Xtune), clf_a.classes_, ytune)
+        pred_a = clf_a.classes_[(clf_a.predict_proba(Xtest) * w_a).argmax(1)]
+        rep_aug = class_report(ytest, pred_a); print_report("User1 + val-fit + AUG + calib", rep_aug)
+        d = rep_aug["macro_f1"] - held
+        print(f"  >>> augmentation effect on held-out macro-F1: {d:+.4f} "
+              f"({'KEEP' if d > 0 else 'DROP'} per AUGMENTATION_STRATEGY.md §8)")
+
     print(f"\n=== Phase B: final model on User1 + ALL validation -> submission ===")
-    Xfin = np.concatenate([Xtr, Xv]); yfin = np.concatenate([ytr, yv])
+    parts_X, parts_y = [Xtr, Xv], [ytr, yv]
+    if args.use_aug_for_submission and Xaug is not None:
+        print("  including augmented copies in the submission model")
+        parts_X.append(Xaug); parts_y.append(yaug)
+    Xfin = np.concatenate(parts_X); yfin = np.concatenate(parts_y)
     best_it = int(clf.best_iteration_ or 1500)
     final = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=best_it,
                                learning_rate=0.05, num_leaves=63, subsample=0.8, subsample_freq=1,
@@ -120,11 +144,17 @@ def main() -> int:
     u, c = np.unique(pred, return_counts=True)
     print("  test pred dist:", {CLASS_NAMES[k-1]: round(n/len(pred), 3) for k, n in zip(u, c)})
     np.savetxt(args.out, np.repeat(pred[:, None], N_SAMPLES, axis=1), fmt="%d", delimiter=" ")
-    joblib.dump({"model": final, "feat_cols": feat, "weights": w}, here / "artifacts" / "split_lgbm.joblib")
+    # `model` = Phase-B submission model (saw all validation). `model_heldout` =
+    # Phase-A model (User1 + val[FIT] only — never saw TEST/TUNE), required for an
+    # HONEST robustness sweep on the held-out TEST slice (robustness_sweep.py).
+    joblib.dump({"model": final, "model_heldout": clf, "feat_cols": feat, "weights": w},
+                here / "artifacts" / "split_lgbm.joblib")
     save_report(here / "artifacts" / "split_results.json", {
         "heldout_user1_only": rep_u1,
         "heldout_user1_plus_valfit": rep_vf,
         "heldout_user1_plus_valfit_calibrated": rep_cal,
+        "heldout_user1_plus_valfit_aug_calibrated": rep_aug,
+        "used_aug_for_submission": bool(args.use_aug_for_submission and Xaug is not None),
         "best_iteration": best_it,
         "calibration_weights": {CLASS_NAMES[i]: round(float(w[i]), 3) for i in range(8)},
         "test_pred_distribution": {CLASS_NAMES[k-1]: int(n) for k, n in zip(u, c)},
