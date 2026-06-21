@@ -80,6 +80,41 @@ def report(tag, yva, pred, loc_va):
     return {"all": allf, "test": rep["macro_f1"], "report": rep}
 
 
+def calibrate(proba, classes, y):
+    """Per-class multipliers maximizing macro-F1 (mirrors train_split.calibrate)."""
+    w = np.ones(len(classes)); grid = np.linspace(0.3, 3.0, 28)
+    f = lambda ww: macro_f1(y, classes[(proba * ww).argmax(1)])
+    for _ in range(4):
+        improved = False
+        for c in range(len(classes)):
+            best_v, best = w[c], f(w)
+            for v in grid:
+                w2 = w.copy(); w2[c] = v
+                if f(w2) > best:
+                    best, best_v = f(w2), v
+            if best_v != w[c]:
+                w[c] = best_v; improved = True
+        if not improved:
+            break
+    return w
+
+
+def fit_cal_eval(tag, Xfit, yfit, Xtune, ytune, Xtest, ytest):
+    """train_split protocol: fit on FIT, early-stop + calibrate on TUNE, eval on
+    the held-out TEST (already Bag/Hips/Torso). Returns calibrated class_report."""
+    clf = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=2000,
+                             learning_rate=0.05, num_leaves=63, subsample=0.8,
+                             subsample_freq=1, colsample_bytree=0.8,
+                             class_weight="balanced", n_jobs=-1, verbosity=-1)
+    clf.fit(Xfit, yfit, eval_set=[(Xtune, ytune)], eval_metric="multi_logloss",
+            callbacks=[early_stopping(100)])
+    w = calibrate(clf.predict_proba(Xtune), clf.classes_, ytune)
+    pred = clf.classes_[(clf.predict_proba(Xtest) * w).argmax(1)]
+    rep = class_report(ytest, pred)
+    print(f"  {tag:24s} held-out TEST macro-F1={rep['macro_f1']:.4f}")
+    return rep
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     root = Path(__file__).resolve().parents[3]
@@ -89,6 +124,11 @@ def main() -> int:
     ap.add_argument("--handcrafted-baseline", action="store_true",
                     help="compute ONLY lgbm(handcrafted) under this exact protocol "
                          "(no embeddings) — the like-for-like reference for the fusion column")
+    ap.add_argument("--use-split", action="store_true",
+                    help="use the train_split.py protocol: fit on User-1 + validation[FIT], "
+                         "calibrate on TUNE, eval on held-out TEST (apples-to-apples vs handcrafted)")
+    ap.add_argument("--split", type=Path,
+                    default=Path(__file__).resolve().parent / "artifacts" / "val_split.npy")
     args = ap.parse_args()
     t0 = time.time()
 
@@ -105,6 +145,42 @@ def main() -> int:
     if not args.emb:
         ap.error("--emb is required (or use --handcrafted-baseline)")
     emb_dir = args.emb_root / args.emb
+
+    # ---- split-aligned protocol (apples-to-apples vs train_split.py) ----------
+    if args.use_split:
+        assign = np.load(args.split)
+        Etr, Eva = load_emb(emb_dir, "train"), load_emb(emb_dir, "validation")
+        ytr, _ = load_labels(args.feat_dir, "train")
+        yva, loc_va = load_labels(args.feat_dir, "validation")
+        Ftr, Fva = load_feats(args.feat_dir, "train"), load_feats(args.feat_dir, "validation")
+        assert len(assign) == len(yva), "val_split / validation length mismatch"
+        fm, tm, sm = assign == 0, assign == 1, assign == 2
+        print(f"[probe-split] {args.emb}  fit=User1+val[{fm.sum()}] tune={tm.sum()} test={sm.sum()}")
+
+        def slices(Etr_, Eva_):                       # FIT = User1 + val[FIT]
+            Xfit = np.concatenate([Etr_, Eva_[fm]]); yfit = np.concatenate([ytr, yva[fm]])
+            return Xfit, yfit, Eva_[tm], yva[tm], Eva_[sm], yva[sm]
+
+        reps = {}
+        reps["emb"] = fit_cal_eval("lgbm(emb)", *slices(Etr, Eva))
+        EFtr = np.concatenate([Etr, Ftr], 1); EFva = np.concatenate([Eva, Fva], 1)
+        reps["fusion"] = fit_cal_eval("lgbm(emb+handcrafted)", *slices(EFtr, EFva))
+        reps["handcrafted"] = fit_cal_eval("lgbm(handcrafted-only)", *slices(Ftr, Fva))
+        d = reps["fusion"]["macro_f1"] - reps["handcrafted"]["macro_f1"]
+        print(f"\n>>> FM verdict (split protocol): fusion {reps['fusion']['macro_f1']:.4f} "
+              f"vs handcrafted-only {reps['handcrafted']['macro_f1']:.4f}  ->  "
+              f"{d:+.4f} ({'FM HELPS' if d > 0 else 'FM does NOT help'})")
+        md = root / "notebooks/mdaniol/BAKEOFF_SPLIT.md"
+        if not md.exists():
+            md.write_text("# Bake-off (split protocol: User1+val[FIT] -> held-out TEST, calibrated)\n\n"
+                          "| emb (model_variant) | lgbm(emb) | lgbm(emb+hc) | lgbm(hc-only) | Δ vs hc |\n"
+                          "|---|---|---|---|---|\n")
+        md.write_text(md.read_text() + (
+            f"| {args.emb} | {reps['emb']['macro_f1']:.4f} | {reps['fusion']['macro_f1']:.4f} "
+            f"| {reps['handcrafted']['macro_f1']:.4f} | {d:+.4f} |\n"))
+        save_report(emb_dir / "probe_split_results.json", reps)
+        print(f"  appended -> {md}  ({time.time()-t0:.0f}s)")
+        return 0
 
     print(f"[probe] {args.emb}")
     Etr, Eva = load_emb(emb_dir, "train"), load_emb(emb_dir, "validation")
