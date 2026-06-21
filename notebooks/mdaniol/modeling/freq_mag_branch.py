@@ -81,8 +81,8 @@ def make_head(name: str):
         return Pipeline([("sc", StandardScaler()),
                          ("clf", SGDClassifier(loss="log_loss", penalty="elasticnet",
                                                l1_ratio=0.15, alpha=1e-4,
-                                               class_weight="balanced", max_iter=50,
-                                               random_state=0))])
+                                               class_weight="balanced", max_iter=1000,
+                                               tol=1e-3, random_state=0))])
     if name == "lgbm_aux":          # shallow, regularized — auxiliary only
         return lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=400,
                                   learning_rate=0.03, max_depth=3, num_leaves=8,
@@ -110,9 +110,15 @@ def main() -> int:
     Fva = load_feats(args.feat_dir, "validation")[:, sel]
     ytr, _ = load_labels(args.feat_dir, "train")
     yva, _ = load_labels(args.feat_dir, "validation")
-    assign, _ = load_split_with_location_map(args.split, args.feat_dir)
+    assign, loc_off = load_split_with_location_map(args.split, args.feat_dir)
     assert len(assign) == len(yva) == len(Fva), "split/val length mismatch"
-    fm, tm, sm = assign == FIT, assign == TUNE, assign == TEST
+    va_loc = np.empty(len(assign), dtype=object)
+    for loc, (s, e) in loc_off.items():
+        va_loc[s:e] = loc
+    bht = np.isin(va_loc.astype(str), ("Bag", "Hips", "Torso"))   # mirror the BHT test
+    fm = assign == FIT
+    tm = (assign == TUNE) & bht
+    sm = (assign == TEST) & bht
 
     Xfit = np.concatenate([Ftr, Fva[fm]]); yfit = np.concatenate([ytr, yva[fm]])
     Xtune, ytune = Fva[tm], yva[tm]

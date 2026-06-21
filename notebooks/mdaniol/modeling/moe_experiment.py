@@ -127,7 +127,14 @@ def main() -> int:
     va_loc = loc_array(args.feat_dir, "validation")
     assign, _ = load_split_with_location_map(args.split, args.feat_dir)
     assert len(assign) == len(yva) == len(Xva), "split/val length mismatch"
-    fit_m, tune_m, test_m = assign == FIT, assign == TUNE, assign == TEST
+    # Evaluate selection (TUNE) and lock (TEST) on BHT ONLY — the real test is
+    # Bag/Hips/Torso (no Hand). This mirrors the test distribution AND keeps the
+    # 3-class router/oracle well-defined (Hand has no expert). FIT keeps all
+    # locations (Hand data still helps train the global model).
+    bht = np.isin(va_loc, EXPERT_LOCS)
+    fit_m = assign == FIT
+    tune_m = (assign == TUNE) & bht
+    test_m = (assign == TEST) & bht
 
     # pooled selection (TUNE) and lock (TEST) matrices + their true locations
     Xtune, ytune, loc_tune = Xva[tune_m], yva[tune_m], va_loc[tune_m]
@@ -197,20 +204,29 @@ def main() -> int:
             run.log_metrics({"selection_lock_gap": gap, "router_acc": router_acc})
 
     # --- decision summary + results table --------------------------------------
+    # Select the best DEPLOYABLE config on the SELECTION split (TUNE), then read its
+    # lock (TEST) — never select on TEST. 'oracle' uses the TRUE location (unknown
+    # at test) so it is a diagnostic upper bound, NOT deployable -> excluded.
     g_te = results["global"]["test"].macro_f1
-    oracle_gain = results["oracle"]["test"].macro_f1 - g_te
-    best = max((n for n in results), key=lambda n: results[n]["test"].macro_f1)
-    print(f"\n=== DECISION (lock-test) ===")
-    print(f"  global={g_te:.4f}  oracle={results['oracle']['test'].macro_f1:.4f} "
-          f"(G1 gain {oracle_gain:+.4f})  router_acc={router_acc:.3f}")
-    print(f"  best config on TEST: {best} = {results[best]['test'].macro_f1:.4f} "
-          f"({'BEATS' if results[best]['test'].macro_f1 > g_te else 'does NOT beat'} global)")
+    oracle_gain = results["oracle"]["test"].macro_f1 - g_te                 # G1
+    deployable = [n for n in results if n != "oracle"]
+    best = max(deployable, key=lambda n: results[n]["tune"].macro_f1)        # selected on TUNE
+    best_te = results[best]["test"].macro_f1
+    print(f"\n=== DECISION ===")
+    print(f"  global TEST={g_te:.4f}  oracle TEST={results['oracle']['test'].macro_f1:.4f} "
+          f"(G1 oracle gain {oracle_gain:+.4f})  router_acc={router_acc:.3f}")
+    print(f"  best deployable (selected on TUNE) = {best}  -> TEST={best_te:.4f} "
+          f"({'BEATS' if best_te > g_te else 'does NOT beat'} global on lock-test)")
 
     hdr = (f"# Location MoE results (rep={args.rep}, emb={args.emb}); "
-           f"router test-acc={router_acc:.3f}; lock-test=TEST, selection=TUNE\n\n"
+           f"router test-acc={router_acc:.3f}; eval on Bag/Hips/Torso; "
+           f"selection=TUNE, lock=TEST. Best deployable (by TUNE): **{best}** "
+           f"(TEST {best_te:.4f} vs global {g_te:.4f}). 'oracle' = upper bound (true loc), "
+           f"not deployable.\n\n"
            "| config | TEST macro-F1 | TUNE macro-F1 | sel-lock gap | Train F1 | Subway F1 |\n"
            "|---|---|---|---|---|---|\n")
-    body = "".join(f"| {n} | {te:.4f} | {tu:.4f} | {g:+.4f} | {tr:.3f} | {sb:.3f} |\n"
+    body = "".join(f"| {'**'+n+'**' if n == best else n} | {te:.4f} | {tu:.4f} | {g:+.4f} "
+                   f"| {tr:.3f} | {sb:.3f} |\n"
                    for n, te, tu, g, tr, sb in rows)
     args.out.write_text(hdr + body)
     print(f"\nwrote {args.out}  ({time.time()-t0:.0f}s)")

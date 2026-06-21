@@ -74,9 +74,15 @@ def main() -> int:
     Eva = load_emb(args.emb_root / args.emb, "validation")
     ytr, _ = load_labels(args.feat_dir, "train")
     yva, _ = load_labels(args.feat_dir, "validation")
-    assign, _ = load_split_with_location_map(args.split, args.feat_dir)
+    assign, loc_off = load_split_with_location_map(args.split, args.feat_dir)
     assert len(assign) == len(yva) == len(Eva), "split/val length mismatch"
-    fm, tm, sm = assign == FIT, assign == TUNE, assign == TEST
+    va_loc = np.empty(len(assign), dtype=object)
+    for loc, (s, e) in loc_off.items():
+        va_loc[s:e] = loc
+    bht = np.isin(va_loc.astype(str), ("Bag", "Hips", "Torso"))   # mirror the BHT test
+    fm = assign == FIT
+    tm = (assign == TUNE) & bht
+    sm = (assign == TEST) & bht
 
     Xfit = np.concatenate([Etr, Eva[fm]]); yfit = np.concatenate([ytr, yva[fm]])
     Xtune, ytune = Eva[tm], yva[tm]

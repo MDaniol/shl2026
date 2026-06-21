@@ -39,6 +39,7 @@ FIT, TUNE, TEST = 0, 1, 2
 CLASSES = list(range(1, 9))
 TRAIN_C, SUBWAY_C = 7, 8                       # class ids
 TRAIN_I, SUBWAY_I = 6, 7                       # 0-based indices into the 8-col proba
+BHT = ("Bag", "Hips", "Torso")                 # the test locations (no Hand)
 MAG_PREFIXES = ("mag_mag__", "mag_rate_mag__")
 
 
@@ -92,8 +93,14 @@ def main() -> int:
     mcols = mag_indices(cols)
     Ftr = load_feats(args.feat_dir, "train"); Fva = load_feats(args.feat_dir, "validation")
     ytr, _ = load_labels(args.feat_dir, "train"); yva, _ = load_labels(args.feat_dir, "validation")
-    assign, _ = load_split_with_location_map(args.split, args.feat_dir)
-    fm, tm, sm = assign == FIT, assign == TUNE, assign == TEST
+    assign, loc_off = load_split_with_location_map(args.split, args.feat_dir)
+    va_loc = np.empty(len(assign), dtype=object)
+    for loc, (s, e) in loc_off.items():
+        va_loc[s:e] = loc
+    bht = np.isin(va_loc.astype(str), BHT)          # mirror the Bag/Hips/Torso test
+    fm = assign == FIT
+    tm = (assign == TUNE) & bht
+    sm = (assign == TEST) & bht
 
     Xfit = np.concatenate([Ftr, Fva[fm]]); yfit = np.concatenate([ytr, yva[fm]])
     out = fit_cal_eval("global(base)", Xfit, yfit, Fva[tm], yva[tm], Fva[sm], yva[sm],
@@ -101,47 +108,51 @@ def main() -> int:
     Pg_tune, Pg_test = out["proba_tune"], out["proba_test"]
     ytune, ytest = yva[tm], yva[sm]
     Xmag_fit = np.concatenate([Ftr[:, mcols], Fva[fm][:, mcols]])
-    Xmag_test = Fva[sm][:, mcols]
+    Xmag_tune, Xmag_test = Fva[tm][:, mcols], Fva[sm][:, mcols]
+    base_tune = evaluate_predictions(ytune, np.asarray(CLASSES)[Pg_tune.argmax(1)])
     base_test = evaluate_predictions(ytest, np.asarray(CLASSES)[Pg_test.argmax(1)])
-    print(f"[rail] base TEST macro={base_test.macro_f1:.4f} "
-          f"Train={base_test.per_class_f1[7]:.3f} Subway={base_test.per_class_f1[8]:.3f}", flush=True)
+    print(f"[rail] base TUNE macro={base_tune.macro_f1:.4f}  TEST macro={base_test.macro_f1:.4f} "
+          f"(Train={base_test.per_class_f1[7]:.3f} Subway={base_test.per_class_f1[8]:.3f})", flush=True)
 
     # train the rail expert on FIT base-probabilities (recompute base proba on FIT)
     from probe_fusion import aligned_proba
     Pg_fit = aligned_proba(out["model"], Xfit, out["weights"])
     rail = train_rail(Pg_fit, yfit, Xmag_fit)
 
+    # sweep thresholds; SELECT on TUNE, report TEST (never tune thresholds on the lock set)
     rows = []
     for tau_rail in (0.45, 0.55, 0.65):
         for tau_conf in (0.55, 0.65, 0.75):
-            pred = apply_rail(Pg_test, Xmag_test, rail, tau_rail, tau_conf)
-            r = evaluate_predictions(ytest, pred)
-            dmacro = r.macro_f1 - base_test.macro_f1
-            rows.append((tau_rail, tau_conf, r.macro_f1, dmacro,
-                         r.per_class_f1[7], r.per_class_f1[8]))
-            print(f"  tau_rail={tau_rail} tau_conf={tau_conf} -> macro={r.macro_f1:.4f} "
-                  f"({dmacro:+.4f}) Train={r.per_class_f1[7]:.3f} Subway={r.per_class_f1[8]:.3f}",
-                  flush=True)
+            r_tu = evaluate_predictions(ytune, apply_rail(Pg_tune, Xmag_tune, rail, tau_rail, tau_conf))
+            r_te = evaluate_predictions(ytest, apply_rail(Pg_test, Xmag_test, rail, tau_rail, tau_conf))
+            d_te = r_te.macro_f1 - base_test.macro_f1
+            rows.append((tau_rail, tau_conf, r_tu.macro_f1, r_te.macro_f1, d_te,
+                         r_te.per_class_f1[7], r_te.per_class_f1[8]))
+            print(f"  tau_rail={tau_rail} tau_conf={tau_conf} -> TUNE={r_tu.macro_f1:.4f} "
+                  f"TEST={r_te.macro_f1:.4f} (Δtest {d_te:+.4f}) Train={r_te.per_class_f1[7]:.3f} "
+                  f"Subway={r_te.per_class_f1[8]:.3f}", flush=True)
             with track("mdaniol", run_name=f"rail_tr{tau_rail}_tc{tau_conf}", seed=0,
-                       params_path=None,
-                       params={"tau_rail": tau_rail, "tau_conf": tau_conf},
+                       params_path=None, params={"tau_rail": tau_rail, "tau_conf": tau_conf},
                        tags={"phase": "rail", "branch": "rail_expert"}) as run:
-                run.log_eval(r, prefix="test_")
-                run.log_metrics({"delta_macro_vs_base": dmacro})
+                run.log_eval(r_te, prefix="test_")
+                run.log_eval(r_tu, prefix="tune_")
+                run.log_metrics({"delta_macro_test_vs_base": d_te})
 
-    best = max(rows, key=lambda r: r[2])
-    keep = best[3] > 0
-    print(f"\n=== RAIL DECISION ===\n  base macro={base_test.macro_f1:.4f}; "
-          f"best (tau_rail={best[0]}, tau_conf={best[1]}) macro={best[2]:.4f} ({best[3]:+.4f}) "
-          f"-> {'KEEP' if keep else 'DISABLE (does not beat base; raise thresholds)'}")
+    best = max(rows, key=lambda r: r[2])             # selected by TUNE macro
+    keep = best[4] > 0                               # KEEP iff that choice beats base on TEST
+    print(f"\n=== RAIL DECISION ===\n  base TEST macro={base_test.macro_f1:.4f}; "
+          f"thresholds selected on TUNE: tau_rail={best[0]} tau_conf={best[1]} "
+          f"-> TEST macro={best[3]:.4f} (Δ {best[4]:+.4f}) "
+          f"-> {'KEEP' if keep else 'DISABLE (TUNE-selected choice does not beat base on lock-test)'}")
 
-    hdr = (f"# Step 8 — global Train-vs-Subway rail expert (base=global handcrafted; "
+    hdr = (f"# Step 8 — global Train-vs-Subway rail expert (base=global handcrafted, Bag/Hips/Torso; "
            f"base TEST macro={base_test.macro_f1:.4f}, Train={base_test.per_class_f1[7]:.3f}, "
-           f"Subway={base_test.per_class_f1[8]:.3f})\n\n"
-           "| tau_rail | tau_conf | TEST macro-F1 | Δ vs base | Train F1 | Subway F1 |\n"
-           "|---|---|---|---|---|---|\n")
-    body = "".join(f"| {tr} | {tc} | {m:.4f} | {d:+.4f} | {trf:.3f} | {sbf:.3f} |\n"
-                   for tr, tc, m, d, trf, sbf in rows)
+           f"Subway={base_test.per_class_f1[8]:.3f}). Thresholds SELECTED on TUNE; **{('KEEP' if keep else 'DISABLE')}** "
+           f"(tau_rail={best[0]}, tau_conf={best[1]}).\n\n"
+           "| tau_rail | tau_conf | TUNE macro-F1 | TEST macro-F1 | Δtest vs base | Train F1 | Subway F1 |\n"
+           "|---|---|---|---|---|---|---|\n")
+    body = "".join(f"| {tr} | {tc} | {mtu:.4f} | {mte:.4f} | {d:+.4f} | {trf:.3f} | {sbf:.3f} |\n"
+                   for tr, tc, mtu, mte, d, trf, sbf in rows)
     args.out.write_text(hdr + body)
     print(f"\nwrote {args.out}  ({time.time()-t0:.0f}s)")
     return 0

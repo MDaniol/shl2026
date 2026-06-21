@@ -36,6 +36,24 @@ flowchart TD
     class FQ,EX,RT,MOE,FUS,RE new;
 ```
 
+## Methodological guarantees (audited)
+The results can be trusted because every script enforces:
+1. **No leakage into TEST.** Scaler/PCA fit on FIT only; LightGBM early-stopping +
+   per-class calibration on TUNE only; router trained on FIT only. TEST is never
+   used in any fit/calibration. `fit_probs` passes TEST only to *prediction*.
+2. **Select on TUNE, confirm on TEST.** The best MoE config and the rail thresholds
+   are chosen by **TUNE** macro-F1; TEST is read once to confirm it beats global.
+   (No "best-on-TEST" cherry-picking — that bug was found and fixed in the audit.)
+3. **Evaluate on the test distribution.** TUNE and TEST evaluation are restricted to
+   **Bag/Hips/Torso** (the real test has no Hand) — this also keeps the 3-class
+   router/oracle well-defined. FIT may include Hand (extra training data only).
+4. **Oracle is a diagnostic, not deployable** — it uses the true location (unknown
+   at test) and is excluded from config selection.
+5. **Determinism.** `track(seed=0)` seeds Py/NumPy/Torch; LightGBM/PCA `random_state=0`;
+   `split.py` is RNG-free. Git SHA recorded per MLflow run.
+6. **Window-independent** (no temporal smoothing / cross-window features — test frames
+   are shuffled).
+
 ## Decision gates (evidence-based; lock-test = held-out TEST)
 - **G1 oracle:** per-location oracle gain over global is *large*? else experts = analysis-only.
 - **G2 router:** router reliable enough that soft-MoE approaches oracle?
