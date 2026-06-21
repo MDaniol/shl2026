@@ -10,7 +10,7 @@
 #SBATCH --array=0-6
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --time=01:30:00
+#SBATCH --time=03:00:00         # fusion head (lgbm on emb⊕520, ~800k rows) is heavy
 #SBATCH --output=notebooks/mdaniol/modeling/logs/probe_%A_%a.out
 ## --- EDIT for your allocation (CPU grant) ---
 #SBATCH --partition=plgrid-gpu-a100

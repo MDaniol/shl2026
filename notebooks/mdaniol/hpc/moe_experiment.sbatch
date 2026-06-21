@@ -9,7 +9,7 @@
 #SBATCH --job-name=shl-moe
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=48G
-#SBATCH --time=01:30:00
+#SBATCH --time=02:00:00         # global + 3 experts + router = 6 fits
 #SBATCH --output=notebooks/mdaniol/modeling/logs/moe_%j.out
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --gres=gpu:1            # Athena is GPU-only (job is CPU-bound)
