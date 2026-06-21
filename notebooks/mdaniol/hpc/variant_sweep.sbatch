@@ -32,7 +32,7 @@ echo "[$(date)] $M variant $V"
 # (was: silently COMPLETED because extraction crash left no embeddings to probe).
 python notebooks/mdaniol/modeling/extract_embeddings.py --model "$M" --variant "$V" \
     --data-dir "$PROJECT_DIR/dataset_parquet" --emb-dir "$PROJECT_DIR/embeddings" \
-    --device cuda --chunk-size 8000 --tf-batch 512 || {
+    --device "${DEVICE:-cuda}" --chunk-size 8000 --tf-batch 512 || {
         echo "[$(date)] EXTRACTION FAILED for $M:$V — skipping probe" >&2; exit 1; }
 python notebooks/mdaniol/modeling/probe_fusion.py --emb "${M}_${V}" \
     --emb-root "$PROJECT_DIR/embeddings" --feat-dir "$PROJECT_DIR/dataset_parquet_features" || {

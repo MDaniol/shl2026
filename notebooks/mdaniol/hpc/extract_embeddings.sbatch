@@ -30,5 +30,5 @@ python notebooks/mdaniol/modeling/extract_embeddings.py \
     --model "$M" --variant "${VARIANT:-V0}" \
     --data-dir "$PROJECT_DIR/dataset_parquet" \
     --emb-dir  "$PROJECT_DIR/embeddings" \
-    --device cuda --chunk-size 8000 --tf-batch 512
+    --device "${DEVICE:-cuda}" --chunk-size 8000 --tf-batch 512
 echo "[$(date)] done $M"
