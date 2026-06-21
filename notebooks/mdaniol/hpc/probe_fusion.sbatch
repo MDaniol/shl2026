@@ -30,6 +30,17 @@ source "$PROJECT_DIR/notebooks/mdaniol/hpc/env_mdaniol.sh"   # single env source
 cd "$PROJECT_DIR"
 bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"   # ensure data symlinks
 mkdir -p notebooks/mdaniol/modeling/logs
+
+# skip (not fail) embedding sets that haven't been extracted yet — e.g. utica_V2
+# until variant_sweep regenerates it. A genuine probe error still -> FAILED below.
+EMB_DIR="$PROJECT_DIR/embeddings/$E"
+for sp in train validation; do for loc in Bag Hips Torso Hand; do
+  if [ ! -f "$EMB_DIR/${sp}__${loc}.npy" ]; then
+    echo "[$(date)] SKIP $E — missing $EMB_DIR/${sp}__${loc}.npy (extract it first)"
+    exit 0
+  fi
+done; done
+
 echo "[$(date)] probe $E (USE_SPLIT=${USE_SPLIT:-1}) on $(hostname)"
 python notebooks/mdaniol/modeling/probe_fusion.py --emb "$E" $SPLIT_FLAG \
     --emb-root "$PROJECT_DIR/embeddings" \
