@@ -83,12 +83,28 @@ def report(tag, yva, pred, loc_va):
 def main() -> int:
     ap = argparse.ArgumentParser()
     root = Path(__file__).resolve().parents[3]
-    ap.add_argument("--emb", required=True, help="<model>_<variant>, e.g. mantisv2_V0")
+    ap.add_argument("--emb", help="<model>_<variant>, e.g. mantisv2_V0")
     ap.add_argument("--emb-root", type=Path, default=root / "embeddings")
     ap.add_argument("--feat-dir", type=Path, default=root / "dataset_parquet_features")
+    ap.add_argument("--handcrafted-baseline", action="store_true",
+                    help="compute ONLY lgbm(handcrafted) under this exact protocol "
+                         "(no embeddings) — the like-for-like reference for the fusion column")
     args = ap.parse_args()
-    emb_dir = args.emb_root / args.emb
     t0 = time.time()
+
+    if args.handcrafted_baseline:
+        ytr, _ = load_labels(args.feat_dir, "train")
+        yva, loc_va = load_labels(args.feat_dir, "validation")
+        Ftr, Fva = load_feats(args.feat_dir, "train"), load_feats(args.feat_dir, "validation")
+        r = report("lgbm(handcrafted-only)", yva, lgbm_eval(Ftr, ytr, Fva, yva), loc_va)
+        print(f"\n>>> handcrafted-only reference (same protocol, uncalibrated): "
+              f"test-loc macro-F1 = {r['test']:.4f}")
+        print("    compare every lgbm(emb+handcrafted) row against THIS, not the 0.7457 calibrated.")
+        return 0
+
+    if not args.emb:
+        ap.error("--emb is required (or use --handcrafted-baseline)")
+    emb_dir = args.emb_root / args.emb
 
     print(f"[probe] {args.emb}")
     Etr, Eva = load_emb(emb_dir, "train"), load_emb(emb_dir, "validation")
