@@ -60,6 +60,33 @@ The results can be trusted because every script enforces:
 - **G3 submission:** location-aware / rail / any branch ships **only if it beats the global
   baseline on lock-test (TEST)**, not the selection split (TUNE).
 
+## Planned side-experiment — VehicleExpert (subset post-processor)
+A **generalization of the rail expert** (Step 8): a gated probability-space corrector
+that redistributes mass *within* a confusable class subset, after **any** base pipeline
+producing 8-class probabilities. Never replaces the base; never touches frozen FMs.
+
+- **Generic core (reuse, don't duplicate):** generalize `rail_expert.apply_rail` →
+  `apply_subset_expert(p_base, p_expert, subset, τ_mass, τ_conf, λ_blend)` (mass-gated +
+  confidence-gated blend, renormalized). R2 becomes a special case.
+- **Experts:** V4 {Car,Bus,Train,Subway}, R2 {Train,Subway}, SV5 {Still,+vehicles}
+  (+ optional Road-vs-Rail). Each trained only on its subset's samples.
+- **Feature groups** (auto-detected by column name, no hardcoded count): `vehicle_features`,
+  `rail_features`, `frequency_features` (`freq_`/`sb_e_`/`sb_r_`/`time_ac_`), `mag_only`.
+- **Leakage-safe by construction:** the expert uses `P_base` as a feature, so it is trained
+  on **TUNE** (where the base's probs are out-of-sample — base fits on FIT), tuned on TUNE,
+  confirmed once on **TEST**. (= the prompt's OOF intent, free from our split. No full OOF CV.)
+- **Pruned matrix (anti-overfitting):** start V4 + R2 (+ SV5 if Still is confused), feature
+  group `rail_features`/`vehicle_features`, input `base_proba + features`, a small τ/λ grid.
+  Select on TUNE, read TEST once — avoid the multiple-comparisons-on-lock-test trap.
+- **Decision (ship only if):** lock-test macro-F1 +≥0.003, **or** vehicle-subset macro-F1
+  +≥0.010 with no global loss; no non-vehicle class drops >0.010; `net_gain>0`; small
+  selection→lock gap. Else report as overfitting and keep disabled.
+- **Evidence gate:** build *after* the base `*_RESULTS.md` land, aimed at the confusion we
+  actually see (rail vs road vs Still/vehicle).
+- **Output:** `vehicle_expert.py` (+ `apply_subset_expert`), `VEHICLE_EXPERT_RESULTS.md`,
+  correction-diagnostics CSV, MLflow runs. Reuses `evaluate_predictions`, `track`,
+  `aligned_proba`, `select_freq_mag`, the split masks, submission utils.
+
 ## File map (extend, don't rewrite)
 | Component | File | Status |
 |---|---|---|
@@ -72,6 +99,7 @@ The results can be trusted because every script enforces:
 | Per-location experts + router | `modeling/probe_fusion.py` (`--per-location`, `--router`, `--rep`) | NEW |
 | MoE / β-fallback / fusion combiner | `modeling/moe_combine.py` | NEW |
 | Rail expert | `modeling/rail_expert.py` | NEW |
+| VehicleExpert (subset post-proc) | `modeling/vehicle_expert.py` (generalizes rail) | PLANNED |
 | Subject column (leakage check) | `feature_extraction/extract_features.py` | NEW |
 | Result tables | `BAKEOFF_SPLIT.md`, `MOE_RESULTS.md` | EXISTS / NEW |
 
