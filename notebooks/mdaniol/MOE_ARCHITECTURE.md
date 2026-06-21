@@ -57,20 +57,33 @@ flowchart TD
 | Subject column (leakage check) | `feature_extraction/extract_features.py` | NEW |
 | Result tables | `BAKEOFF_SPLIT.md`, `MOE_RESULTS.md` | EXISTS / NEW |
 
-## MLflow logging (reuse the team server)
-Every experiment — existing *and* new — logs through `modeling/mlflow_utils.py` to the team
-MLflow server (`scripts/mlflow_server.sh`) via `MLFLOW_TRACKING_URI` (exported by group
-`env.sh`, sourced by `env_mdaniol.sh`). No-op safe: if the URI is unset (local dev), logging
-silently disables and `mlflow` isn't even imported.
-- **Experiment:** `shl2026-mdaniol` (override via `MLFLOW_EXPERIMENT`) — namespaced on the shared server.
-- **One run per config**, `run_name = <config>` (e.g. `global+softmoe_b0.40`).
-- **Params:** rep, model/variant, location, β, τ_rail/τ_conf, seed, PCA dim, n_estimators.
-- **Tags:** `git_sha`, `phase` (baseline/freqmag/emb/oracle/router/moe/fusion/rail), `branch`.
-- **Metrics:** `{tune,test}_macro_f1`, `selection_lock_gap`, per-class `test_f1_<class>`
-  (incl. Train/Subway), router accuracy/macro-F1 (via `log_class_report`).
-- **Artifacts:** the per-config result JSON (and any confusion-matrix dump).
-Wire-in: each runner wraps a config in `with mlflow_run(...) as run:` and calls `run.metrics(...)`
-+ `log_class_report(...)`; the JSON/markdown tables stay as the offline record too.
+## MLflow logging — use the EXISTING team API (`shl2026.track`)
+Do NOT roll our own MLflow wrapper. The team package already provides it:
+`from shl2026 import track, evaluate_predictions` (impl `src/shl2026/tracking/autolog.py`).
+`track()` reads `MLFLOW_TRACKING_URI` (group `env.sh` → `env_mdaniol.sh`), opens one run,
+auto-stamps git SHA/dirty, container, Slurm job, node, grant, student, python_env, logs a
+code_snapshot if dirty, and **no-ops gracefully** if MLflow is unreachable. Server =
+`scripts/mlflow_server.sh` (sqlite+proxied artifacts), client+server mlflow 3.13.
+
+Convention for our runs:
+- **Experiment = `"mdaniol"`** (student-name convention; shows on the team `leaderboard()`).
+- **`run_name = <config>`** (e.g. `global+softmoe_b0.40`), **`seed=0`** (track seeds Py/NumPy/Torch),
+  **`params_path=None`** (our scripts use argparse, not the root `params.yaml`).
+- **params:** rep, model/variant, location, β, τ_rail/τ_conf, PCA dim, n_estimators.
+- **tags:** `phase` (baseline/freqmag/emb/oracle/router/moe/fusion/rail), `branch`.
+- **metrics:** score with `evaluate_predictions(y_true, y_pred)` → `EvalResult`, then
+  `run.log_eval(result, prefix="test_")` / `"tune_"` (logs macro_f1 + per-class incl.
+  Train/Subway); add `run.log_metrics({"selection_lock_gap": ...})`.
+- **artifacts:** `run.log_artifact(<per-config json>)`.
+Pattern:
+```python
+from shl2026 import track, evaluate_predictions
+with track("mdaniol", run_name=cfg, seed=0, params_path=None,
+           params={...}, tags={"phase": "moe", "branch": "fusion"}) as run:
+    run.log_eval(evaluate_predictions(y_test, pred_test), prefix="test_")
+    run.log_metrics({"selection_lock_gap": gap})
+```
+The JSON/markdown tables stay as the offline record alongside MLflow.
 
 ## Versioning convention
 - **Code:** git, one commit per step; message `feat(moe): <step> — <what/why>`.
