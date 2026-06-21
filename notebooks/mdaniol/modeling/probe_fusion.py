@@ -111,7 +111,8 @@ def fit_cal_eval(tag, Xfit, yfit, Xtune, ytune, Xtest, ytest):
     w = calibrate(clf.predict_proba(Xtune), clf.classes_, ytune)
     pred = clf.classes_[(clf.predict_proba(Xtest) * w).argmax(1)]
     rep = class_report(ytest, pred)
-    print(f"  {tag:24s} held-out TEST macro-F1={rep['macro_f1']:.4f}")
+    pc = " ".join(f"{k[:2]}={d['f1']:.2f}" for k, d in rep["per_class"].items())
+    print(f"  {tag:24s} held-out TEST macro-F1={rep['macro_f1']:.4f} | per-class: {pc}")
     return rep
 
 
