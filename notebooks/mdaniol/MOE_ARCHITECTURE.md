@@ -57,6 +57,21 @@ flowchart TD
 | Subject column (leakage check) | `feature_extraction/extract_features.py` | NEW |
 | Result tables | `BAKEOFF_SPLIT.md`, `MOE_RESULTS.md` | EXISTS / NEW |
 
+## MLflow logging (reuse the team server)
+Every experiment — existing *and* new — logs through `modeling/mlflow_utils.py` to the team
+MLflow server (`scripts/mlflow_server.sh`) via `MLFLOW_TRACKING_URI` (exported by group
+`env.sh`, sourced by `env_mdaniol.sh`). No-op safe: if the URI is unset (local dev), logging
+silently disables and `mlflow` isn't even imported.
+- **Experiment:** `shl2026-mdaniol` (override via `MLFLOW_EXPERIMENT`) — namespaced on the shared server.
+- **One run per config**, `run_name = <config>` (e.g. `global+softmoe_b0.40`).
+- **Params:** rep, model/variant, location, β, τ_rail/τ_conf, seed, PCA dim, n_estimators.
+- **Tags:** `git_sha`, `phase` (baseline/freqmag/emb/oracle/router/moe/fusion/rail), `branch`.
+- **Metrics:** `{tune,test}_macro_f1`, `selection_lock_gap`, per-class `test_f1_<class>`
+  (incl. Train/Subway), router accuracy/macro-F1 (via `log_class_report`).
+- **Artifacts:** the per-config result JSON (and any confusion-matrix dump).
+Wire-in: each runner wraps a config in `with mlflow_run(...) as run:` and calls `run.metrics(...)`
++ `log_class_report(...)`; the JSON/markdown tables stay as the offline record too.
+
 ## Versioning convention
 - **Code:** git, one commit per step; message `feat(moe): <step> — <what/why>`.
 - **Results:** append-only `MOE_RESULTS.md` (git-tracked) + per-config JSON `artifacts/<config>.json`
