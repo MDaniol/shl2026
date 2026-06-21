@@ -7,7 +7,7 @@
 # Set USE_SPLIT=0 to run the old train->validation probe (BAKEOFF_RESULTS.md).
 #
 #SBATCH --job-name=shl-probe
-#SBATCH --array=0-5
+#SBATCH --array=0-6
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=01:30:00
@@ -21,7 +21,7 @@ set -uo pipefail
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 
 # the cached embedding sets to probe (one per array task; bump --array to match)
-EMBS=(mantisv2_V0 mantisv2_V1 mantisv2_V2 utica_V1 moment-small_V1 moment-small_V2)
+EMBS=(mantisv2_V0 mantisv2_V1 mantisv2_V2 utica_V1 utica_V2 moment-small_V1 moment-small_V2)
 E="${EMBS[$SLURM_ARRAY_TASK_ID]}"
 SPLIT_FLAG=""; [ "${USE_SPLIT:-1}" = "1" ] && SPLIT_FLAG="--use-split \
     --split $PROJECT_DIR/notebooks/mdaniol/modeling/artifacts/val_split.npy"
