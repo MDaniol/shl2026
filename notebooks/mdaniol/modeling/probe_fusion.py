@@ -65,7 +65,7 @@ def lgbm_eval(Xtr, ytr, Xva, yva):
     clf = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=2000,
                              learning_rate=0.05, num_leaves=63, subsample=0.8,
                              subsample_freq=1, colsample_bytree=0.8,
-                             class_weight="balanced", n_jobs=-1, verbosity=-1)
+                             class_weight="balanced", n_jobs=-1, verbosity=-1, random_state=0)
     clf.fit(Xtr, ytr, eval_set=[(Xva, yva)], eval_metric="multi_logloss",
             callbacks=[early_stopping(100)])
     return clf.predict(Xva)
@@ -127,7 +127,7 @@ def fit_cal_eval(tag, Xfit, yfit, Xtune, ytune, Xtest, ytest, return_probs=False
     clf = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=2000,
                              learning_rate=0.05, num_leaves=63, subsample=0.8,
                              subsample_freq=1, colsample_bytree=0.8,
-                             class_weight="balanced", n_jobs=-1, verbosity=-1)
+                             class_weight="balanced", n_jobs=-1, verbosity=-1, random_state=0)
     clf.fit(Xfit, yfit, eval_set=[(Xtune, ytune)], eval_metric="multi_logloss",
             callbacks=[early_stopping(100)])
     w = calibrate(clf.predict_proba(Xtune), clf.classes_, ytune)

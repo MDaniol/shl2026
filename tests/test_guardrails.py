@@ -102,3 +102,16 @@ def test_aligned_proba_order_and_normalized():
 def test_moe_combine_self_test():
     import moe_combine as moe
     moe.self_test()   # raises on any violation
+
+
+# --- determinism: every bagged LightGBM must be seeded ------------------------
+def test_lgbm_subsampling_is_seeded():
+    """`subsample<1` makes LightGBM stochastic; without random_state results vary
+    run-to-run (breaks reproducibility). Enforce: in each modeling file, #subsample
+    instantiations <= #random_state (every bagged model is seeded)."""
+    offenders = []
+    for f in _MODELING.glob("*.py"):
+        txt = f.read_text()
+        if txt.count("subsample=") > txt.count("random_state="):
+            offenders.append(f.name)
+    assert not offenders, f"bagged LightGBM without random_state in: {offenders}"

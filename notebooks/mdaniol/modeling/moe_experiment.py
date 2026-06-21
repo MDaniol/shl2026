@@ -65,7 +65,7 @@ def _lgbm(num_class=8, n_est=2000, leaves=63):
     return lgb.LGBMClassifier(objective="multiclass", num_class=num_class, n_estimators=n_est,
                               learning_rate=0.05, num_leaves=leaves, subsample=0.8,
                               subsample_freq=1, colsample_bytree=0.8,
-                              class_weight="balanced", n_jobs=-1, verbosity=-1)
+                              class_weight="balanced", n_jobs=-1, verbosity=-1, random_state=0)
 
 
 def fit_probs(Xfit, yfit, Xcal, ycal, evals: dict) -> dict:

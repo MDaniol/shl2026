@@ -85,6 +85,7 @@ def main() -> int:
         class_weight="balanced",   # target macro-F1 (up-weights rare Run)
         n_jobs=-1,
         verbosity=-1,
+        random_state=0,            # determinism (subsample<1 is stochastic)
     )
     print("Training LightGBM (early-stopping on val multi_logloss)…", flush=True)
     clf.fit(
