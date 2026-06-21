@@ -117,9 +117,20 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0,
                     help="cap windows per file for a smoke test (0 = all). Use a "
                          "throwaway --emb-dir so the partial output isn't cached.")
+    ap.add_argument("--prefetch", action="store_true",
+                    help="only download + cache the model weights (HF_HOME) then exit. "
+                         "Run serially per model BEFORE a parallel array to avoid the "
+                         "concurrent-download race. Works on CPU (no GPU needed).")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available()
                     else ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
+
+    if args.prefetch:
+        dev = "cpu"   # download only; avoid CUDA init so it runs anywhere
+        print(f"[prefetch] downloading {args.model} weights -> HF cache ...", flush=True)
+        build_embedder(args.model, dev, args.tf_batch)
+        print(f"[prefetch] {args.model} cached. Safe to run the parallel array now.", flush=True)
+        return 0
 
     embed, packer = build_embedder(args.model, args.device, args.tf_batch)
     outdir = args.emb_dir / f"{args.model}_{args.variant}"
