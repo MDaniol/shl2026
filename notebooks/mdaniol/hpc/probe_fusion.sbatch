@@ -26,8 +26,7 @@ E="${EMBS[$SLURM_ARRAY_TASK_ID]}"
 SPLIT_FLAG=""; [ "${USE_SPLIT:-1}" = "1" ] && SPLIT_FLAG="--use-split \
     --split $PROJECT_DIR/notebooks/mdaniol/modeling/artifacts/val_split.npy"
 
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # group paths + UV_CACHE_DIR
-source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate" # YOUR env (team lock + FM add-ons), overrides env.sh's group venv
+source "$PROJECT_DIR/notebooks/mdaniol/hpc/env_mdaniol.sh"   # single env source: group env + my venv + HF/uv/tmp caches
 cd "$PROJECT_DIR"
 bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"   # ensure data symlinks
 mkdir -p notebooks/mdaniol/modeling/logs
