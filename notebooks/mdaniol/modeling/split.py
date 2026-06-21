@@ -37,6 +37,30 @@ FIT, TUNE, TEST = 0, 1, 2
 N_BLOCKS = 30          # ~30 contiguous blocks per location, cycled 60/20/20
 
 
+def load_split_with_location_map(split_path, feat_dir):
+    """Load val_split.npy and recover per-location row ranges.
+
+    val_split.npy is row-aligned to the LOCATIONS-order concatenation of the
+    validation feature files (the same order load_feats/load_emb use), so we
+    rebuild offsets from each location's row count.
+
+    Returns (assign, loc_offsets) where assign is the int8 FIT/TUNE/TEST array
+    and loc_offsets = {loc: (start, end)} indexes into it.
+    """
+    from pathlib import Path
+    import numpy as np
+    import pandas as pd
+    assign = np.load(split_path)
+    loc_offsets, offset = {}, 0
+    for loc in LOCATIONS:
+        n = len(pd.read_parquet(Path(feat_dir) / "validation" / f"{loc}.parquet",
+                                columns=["label"]))
+        loc_offsets[loc] = (offset, offset + n)
+        offset += n
+    assert offset == len(assign), f"loc rows {offset} != split {len(assign)}"
+    return assign, loc_offsets
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     root = Path(__file__).resolve().parents[3]
