@@ -99,9 +99,31 @@ def calibrate(proba, classes, y):
     return w
 
 
-def fit_cal_eval(tag, Xfit, yfit, Xtune, ytune, Xtest, ytest):
+def aligned_proba(clf, X, w=None):
+    """Predict probabilities re-indexed to the fixed CLASSES (1..8) order and
+    row-normalized, so probas from different experts/heads are directly mixable
+    (the MoE/β-blend in moe_combine.py). Optionally apply calibration weights w
+    (in clf.classes_ order) first."""
+    P = clf.predict_proba(X)
+    if w is not None:
+        P = P * w
+    col = {c: i for i, c in enumerate(clf.classes_)}
+    out = np.zeros((P.shape[0], len(CLASSES)), dtype=np.float64)
+    for j, c in enumerate(CLASSES):
+        if c in col:
+            out[:, j] = P[:, col[c]]
+    out /= (out.sum(axis=1, keepdims=True) + 1e-12)
+    return out
+
+
+def fit_cal_eval(tag, Xfit, yfit, Xtune, ytune, Xtest, ytest, return_probs=False):
     """train_split protocol: fit on FIT, early-stop + calibrate on TUNE, eval on
-    the held-out TEST (already Bag/Hips/Torso). Returns calibrated class_report."""
+    the held-out TEST (already Bag/Hips/Torso).
+
+    Default: returns the calibrated TEST class_report (back-compat).
+    return_probs=True: returns a dict with the fitted model, calibration weights,
+    class-aligned calibrated probabilities on TUNE and TEST, both reports, and the
+    selection-lock gap — the shared artifact the oracle/router/MoE consume."""
     clf = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=2000,
                              learning_rate=0.05, num_leaves=63, subsample=0.8,
                              subsample_freq=1, colsample_bytree=0.8,
@@ -109,10 +131,18 @@ def fit_cal_eval(tag, Xfit, yfit, Xtune, ytune, Xtest, ytest):
     clf.fit(Xfit, yfit, eval_set=[(Xtune, ytune)], eval_metric="multi_logloss",
             callbacks=[early_stopping(100)])
     w = calibrate(clf.predict_proba(Xtune), clf.classes_, ytune)
-    pred = clf.classes_[(clf.predict_proba(Xtest) * w).argmax(1)]
-    rep = class_report(ytest, pred)
+    cls = np.asarray(CLASSES)
+    Ptu = aligned_proba(clf, Xtune, w)
+    Pte = aligned_proba(clf, Xtest, w)
+    rep = class_report(ytest, cls[Pte.argmax(1)])
+    rep_tune = class_report(ytune, cls[Ptu.argmax(1)])
+    gap = rep_tune["macro_f1"] - rep["macro_f1"]          # selection-lock gap
     pc = " ".join(f"{k[:2]}={d['f1']:.2f}" for k, d in rep["per_class"].items())
-    print(f"  {tag:24s} held-out TEST macro-F1={rep['macro_f1']:.4f} | per-class: {pc}")
+    print(f"  {tag:24s} TEST macro-F1={rep['macro_f1']:.4f} | TUNE={rep_tune['macro_f1']:.4f} "
+          f"(gap {gap:+.4f}) | per-class: {pc}")
+    if return_probs:
+        return {"rep": rep, "rep_tune": rep_tune, "gap": gap, "model": clf,
+                "weights": w, "classes": cls, "proba_tune": Ptu, "proba_test": Pte}
     return rep
 
 
