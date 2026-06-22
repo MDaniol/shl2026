@@ -215,7 +215,21 @@ def main() -> int:
         md.write_text(md.read_text() + (
             f"| {args.emb} | {reps['emb']['macro_f1']:.4f} | {reps['fusion']['macro_f1']:.4f} "
             f"| {reps['handcrafted']['macro_f1']:.4f} | {d:+.4f} |\n"))
-        save_report(emb_dir / "probe_split_results.json", reps)
+        json_path = emb_dir / "probe_split_results.json"
+        save_report(json_path, reps)
+        # MLflow: one run per embedding set; split scheme + bare macro_f1 + artifacts (rule §8).
+        from shl2026 import track
+        with track("mdaniol", run_name=f"bakeoff_{args.emb}", seed=0, params_path=None,
+                   params={"emb": args.emb, "split": args.split.stem,
+                           "protocol": "fit(User1+val[FIT])->cal(TUNE)->lock(TEST)"},
+                   tags={"phase": "bakeoff", "branch": "fm_probe",
+                         "verdict": "FM_HELPS" if d > 0 else "FM_NO_HELP"}) as run:
+            run.log_metrics({"macro_f1": reps["fusion"]["macro_f1"],      # headline = fused
+                             "emb_macro_f1": reps["emb"]["macro_f1"],
+                             "handcrafted_macro_f1": reps["handcrafted"]["macro_f1"],
+                             "delta_vs_handcrafted": d})
+            run.log_artifact(md)
+            run.log_artifact(json_path)
         print(f"  appended -> {md}  ({time.time()-t0:.0f}s)")
         return 0
 

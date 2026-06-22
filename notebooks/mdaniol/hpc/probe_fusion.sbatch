@@ -6,8 +6,12 @@
 # lane (writes BAKEOFF_SPLIT.md with the decisive "Δ vs handcrafted" column).
 # Set USE_SPLIT=0 to run the old train->validation probe (BAKEOFF_RESULTS.md).
 #
+# Split scheme: TEMPORAL=1 (default) -> val_split_temporal.npy (the honest split);
+# TEMPORAL=0 -> val_split.npy (blocked, inflates). The split is generated if missing
+# (deterministic). MLflow logs the split scheme so blocked/temporal runs are distinct.
+#
 #SBATCH --job-name=shl-probe
-#SBATCH --array=0-6
+#SBATCH --array=0-10
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=05:00:00         # fusion head (lgbm on emb⊕520, ~800k rows) is heavy
@@ -20,16 +24,31 @@
 set -uo pipefail
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 
-# the cached embedding sets to probe (one per array task; bump --array to match)
-EMBS=(mantisv2_V0 mantisv2_V1 mantisv2_V2 utica_V1 utica_V2 moment-small_V1 moment-small_V2)
+# the cached embedding sets to probe (one per array task; bump --array to match).
+# All FM families × variants; sets that aren't extracted yet are SKIPPED (not failed).
+EMBS=(mantisv2_V0 mantisv2_V1 mantisv2_V2 \
+      mantis8m_V0 mantis8m_V1 mantis8m_V2 \
+      utica_V0 utica_V1 utica_V2 \
+      moment-small_V1 moment-small_V2)
 E="${EMBS[$SLURM_ARRAY_TASK_ID]}"
-SPLIT_FLAG=""; [ "${USE_SPLIT:-1}" = "1" ] && SPLIT_FLAG="--use-split \
-    --split $PROJECT_DIR/notebooks/mdaniol/modeling/artifacts/val_split.npy"
+
+# honest temporal split by default; TEMPORAL=0 -> blocked
+SCHEME="temporal"; SPLIT_NAME="val_split_temporal.npy"
+[ "${TEMPORAL:-1}" = "0" ] && { SCHEME="blocked"; SPLIT_NAME="val_split.npy"; }
+SPLIT="$PROJECT_DIR/notebooks/mdaniol/modeling/artifacts/$SPLIT_NAME"
+SPLIT_FLAG=""; [ "${USE_SPLIT:-1}" = "1" ] && SPLIT_FLAG="--use-split --split $SPLIT"
 
 source "$PROJECT_DIR/notebooks/mdaniol/hpc/env_mdaniol.sh"   # single env source: group env + my venv + HF/uv/tmp caches
 cd "$PROJECT_DIR"
 bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"   # ensure data symlinks
 mkdir -p notebooks/mdaniol/modeling/logs
+
+# ensure the split exists (deterministic; pre-generate once to avoid an array race)
+if [ "${USE_SPLIT:-1}" = "1" ] && [ ! -f "$SPLIT" ]; then
+  echo "[$(date)] generating $SCHEME split -> $SPLIT"
+  python notebooks/mdaniol/modeling/split.py --scheme "$SCHEME" --embargo 100 \
+      --feat-dir "$PROJECT_DIR/dataset_parquet_features" --out "$SPLIT"
+fi
 
 # skip (not fail) embedding sets that haven't been extracted yet — e.g. utica_V2
 # until variant_sweep regenerates it. A genuine probe error still -> FAILED below.
@@ -41,7 +60,7 @@ for sp in train validation; do for loc in Bag Hips Torso Hand; do
   fi
 done; done
 
-echo "[$(date)] probe $E (USE_SPLIT=${USE_SPLIT:-1}) on $(hostname)"
+echo "[$(date)] probe $E (USE_SPLIT=${USE_SPLIT:-1} split=$SPLIT_NAME) on $(hostname)"
 python notebooks/mdaniol/modeling/probe_fusion.py --emb "$E" $SPLIT_FLAG \
     --emb-root "$PROJECT_DIR/embeddings" \
     --feat-dir "$PROJECT_DIR/dataset_parquet_features" || {
