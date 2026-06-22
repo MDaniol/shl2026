@@ -138,6 +138,19 @@ def test_lgbm_subsampling_is_seeded():
     assert not offenders, f"bagged LightGBM without random_state in: {offenders}"
 
 
+def test_prior_adapt_recovers_shift_and_identities():
+    """Tier-1 label-shift: MLLS recovers a known induced prior shift; adapt/logit are
+    identities under no shift; outputs stay row-normalized."""
+    import prior_adapt as pa
+    pa.self_test()                       # raises on failure (MLLS recovery + identities)
+    import numpy as np
+    P = np.array([[0.7, 0.2, 0.1], [0.1, 0.1, 0.8]])
+    pi = np.array([0.5, 0.3, 0.2])
+    assert np.allclose(pa.adapt(P, pi, pi), P, atol=1e-9)
+    assert np.allclose(pa.logit_adjust(P, pi, 0.0), P, atol=1e-9)
+    assert np.allclose(pa.adapt(P, pi, pi[::-1]).sum(1), 1.0, atol=1e-6)
+
+
 def test_loaders_route_test_to_single_all_file():
     """Regression: the test set is one merged 'all' file (no per-location, no Hand), so
     the loaders must NOT iterate Bag/Hips/Torso/Hand for split=='test' (that was a
