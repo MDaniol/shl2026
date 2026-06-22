@@ -52,3 +52,4 @@ the two.
 
 | version | date (UTC) | recipe | git SHA | file | held-out (conservative) | notes |
 |---|---|---|---|---|---|---|
+| v1 | 2026-06-22 13:48 | moment-fusion(moment-small_V1)+cal | cda79f9 | AGH_predictions_v1_moment-fusion.txt | ~0.803 (temporal; bracket 0.725-0.803) | FIT-train + TUNE-calibrated; det |
