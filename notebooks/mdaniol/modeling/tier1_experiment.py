@@ -69,9 +69,17 @@ def main() -> int:
     raw_tu = aligned_proba(clf, Xva[tune_m], None)      # uncalibrated posteriors
     raw_te = aligned_proba(clf, Xva[test_m], None)
     cal_tu, cal_te = out["proba_tune"], out["proba_test"]   # = raw * w, normalized (v1)
-    pi_train = pa.class_prior(yfit)
-    print(f"[tier1] fit={len(yfit)} tune={len(ytune)} test={len(ytest)} | "
-          f"pi_train Run={pi_train[RUN-1]:.3f}", flush=True)
+    # Source prior for label-shift = the prior under which the model's posteriors are expressed.
+    # The base LGBM uses class_weight="balanced", so its IMPLIED prior is ~uniform, NOT the label
+    # frequencies — using class_prior(yfit) as pi_src would mis-specify the shift (esp. for rare
+    # Run) since the Saerens EM fixed point depends on pi_src. Estimate it empirically as the mean
+    # raw posterior over a FIT subsample (the methodologically correct, weighting-agnostic pi_src).
+    rng = np.random.default_rng(0)
+    sub = rng.choice(len(Xfit), size=min(100000, len(Xfit)), replace=False)
+    pi_src = aligned_proba(clf, Xfit[sub], None).mean(0)
+    pi_train = pa.class_prior(yfit)                      # label frequencies (reporting only)
+    print(f"[tier1] fit={len(yfit)} tune={len(ytune)} test={len(ytest)} | Run prior: "
+          f"implied(pi_src)={pi_src[RUN-1]:.3f} vs labels(pi_train)={pi_train[RUN-1]:.3f}", flush=True)
 
     def ev(y, P):
         r = evaluate_predictions(y, CLS[P.argmax(1)])
@@ -81,14 +89,14 @@ def main() -> int:
     variants = {}
     variants["raw"] = (raw_tu, raw_te)
     variants["cal(v1)"] = (cal_tu, cal_te)
-    # logit adjustment: sweep tau on TUNE, lock on TEST
+    # logit adjustment: sweep tau on TUNE, lock on TEST (divide out the implied source prior)
     taus = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
-    best_tau = max(taus, key=lambda t: ev(ytune, pa.logit_adjust(raw_tu, pi_train, t))[0])
-    variants[f"logit_adj(t={best_tau})"] = (pa.logit_adjust(raw_tu, pi_train, best_tau),
-                                            pa.logit_adjust(raw_te, pi_train, best_tau))
-    # MLLS: estimate each set's prior from its OWN unlabeled marginal, then adapt
-    pi_tu = pa.estimate_prior_mlls(raw_tu, pi_train); pi_te = pa.estimate_prior_mlls(raw_te, pi_train)
-    mlls_tu, mlls_te = pa.adapt(raw_tu, pi_train, pi_tu), pa.adapt(raw_te, pi_train, pi_te)
+    best_tau = max(taus, key=lambda t: ev(ytune, pa.logit_adjust(raw_tu, pi_src, t))[0])
+    variants[f"logit_adj(t={best_tau})"] = (pa.logit_adjust(raw_tu, pi_src, best_tau),
+                                            pa.logit_adjust(raw_te, pi_src, best_tau))
+    # MLLS: estimate each set's prior from its OWN unlabeled marginal, then adapt (pi_src = implied)
+    pi_tu = pa.estimate_prior_mlls(raw_tu, pi_src); pi_te = pa.estimate_prior_mlls(raw_te, pi_src)
+    mlls_tu, mlls_te = pa.adapt(raw_tu, pi_src, pi_tu), pa.adapt(raw_te, pi_src, pi_te)
     variants["mlls"] = (mlls_tu, mlls_te)
     # cal + mlls: re-calibrate macro-F1 multipliers on the MLLS-adapted TUNE
     w2 = calibrate(mlls_tu, CLS, ytune)
@@ -101,7 +109,7 @@ def main() -> int:
         rows[name] = (mt, ms, rt, rs)
         print(f"  {name:16s} TUNE={mt:.4f} TEST={ms:.4f} | Run TUNE={rt:.3f} TEST={rs:.3f}", flush=True)
     # analysis-only oracle (true TEST prior) — upper bound, NOT deployable
-    orc = pa.adapt(raw_te, pi_train, pa.class_prior(ytest))
+    orc = pa.adapt(raw_te, pi_src, pa.class_prior(ytest))
     om, orun, _ = ev(ytest, orc)
     print(f"  {'[oracle prior]':16s} TEST={om:.4f} Run={orun:.3f}  (upper bound, not deployable)", flush=True)
 

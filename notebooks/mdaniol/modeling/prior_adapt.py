@@ -31,7 +31,12 @@ def class_prior(y, n_classes: int = 8) -> np.ndarray:
 
 def adapt(P: np.ndarray, pi_src: np.ndarray, pi_tgt: np.ndarray) -> np.ndarray:
     """Label-shift reweight posteriors from source prior to target prior; row-normalized.
-    Identity when pi_tgt == pi_src."""
+    Identity when pi_tgt == pi_src.
+
+    IMPORTANT: pi_src must be the prior under which P are expressed = the model's IMPLIED prior
+    (mean posterior over training data), NOT the label frequencies if the model used class
+    reweighting (e.g. class_weight="balanced" makes the implied prior ~uniform). Mis-specifying
+    pi_src mis-scales the shift, especially for rare classes."""
     Pa = P * (pi_tgt / (pi_src + _EPS))[None, :]
     return Pa / (Pa.sum(1, keepdims=True) + _EPS)
 
