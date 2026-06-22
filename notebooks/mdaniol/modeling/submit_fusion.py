@@ -27,12 +27,15 @@ from pathlib import Path
 
 import numpy as np
 import lightgbm as lgb
+from lightgbm import early_stopping
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
-from probe_fusion import load_feats, load_emb, load_labels  # noqa: E402
+from probe_fusion import load_feats, load_emb, load_labels, calibrate, aligned_proba, CLASSES  # noqa: E402
+from split import load_split_with_location_map  # noqa: E402
 
 N_TEST = 92726
+FIT, TUNE, TEST = 0, 1, 2
 CLASS_NAMES = ["Still", "Walk", "Run", "Bike", "Car", "Bus", "Train", "Subway"]
 
 
@@ -58,8 +61,10 @@ def main() -> int:
     ap.add_argument("--emb", default="moment-small_V1")
     ap.add_argument("--feat-dir", type=Path, default=root / "dataset_parquet_features")
     ap.add_argument("--emb-root", type=Path, default=root / "embeddings")
-    ap.add_argument("--n-estimators", type=int, default=600,
-                    help="Phase-B has no early-stop set; 600 ~ typical early-stop landing.")
+    ap.add_argument("--n-estimators", type=int, default=2000,
+                    help="ceiling; early-stopping on the calibration slice picks the actual count.")
+    ap.add_argument("--split", type=Path, default=_HERE / "artifacts" / "val_split_temporal.npy",
+                    help="split for the FIT(train)/TUNE(calibration) protocol that matched 0.803.")
     ap.add_argument("--version", default="v1")
     ap.add_argument("--team", default="AGH")
     ap.add_argument("--out", type=Path, default=None)
@@ -67,26 +72,37 @@ def main() -> int:
 
     from shl2026 import write_submission
 
-    cfg = f"moment-fusion({args.emb})"
+    cfg = f"moment-fusion({args.emb})+cal"
     out = args.out or (root / "notebooks/mdaniol" /
                        f"{args.team}_predictions_{args.version}_moment-fusion.txt")
 
-    # --- Phase B: train on ALL labelled data (User-1 train + ALL validation) ----
-    Xtr = np.concatenate([fuse(args.feat_dir, args.emb_root, args.emb, "train"),
-                          fuse(args.feat_dir, args.emb_root, args.emb, "validation")])
-    ytr = np.concatenate([load_labels(args.feat_dir, "train")[0],
-                          load_labels(args.feat_dir, "validation")[0]])
-    print(f"[submit] train X={Xtr.shape} (User-1 + ALL validation)", flush=True)
+    # Reproduce the evaluated 0.803 recipe: fit on User-1 + validation[FIT], early-stop
+    # AND per-class calibrate on validation[TUNE] (calibration is ~+0.16 macro — it
+    # rescues rare classes, esp. Run 0.20->~0.75), then predict the unlabelled test.
+    Xtr_u1 = fuse(args.feat_dir, args.emb_root, args.emb, "train")
+    Xva = fuse(args.feat_dir, args.emb_root, args.emb, "validation")
+    ytr_u1 = load_labels(args.feat_dir, "train")[0]
+    yva = load_labels(args.feat_dir, "validation")[0]
+    assign, _ = load_split_with_location_map(args.split, args.feat_dir)
+    assert len(assign) == len(yva), "split/validation length mismatch"
+    fit_m, tune_m = assign == FIT, assign == TUNE
+
+    Xfit = np.concatenate([Xtr_u1, Xva[fit_m]]); yfit = np.concatenate([ytr_u1, yva[fit_m]])
+    Xcal, ycal = Xva[tune_m], yva[tune_m]
+    print(f"[submit] fit X={Xfit.shape} (User-1 + val[FIT]); calibrate on val[TUNE] n={len(ycal)}",
+          flush=True)
     clf = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=args.n_estimators,
                              learning_rate=0.05, num_leaves=63, subsample=0.8, subsample_freq=1,
                              colsample_bytree=0.8, class_weight="balanced", n_jobs=-1,
                              verbosity=-1, random_state=0)
-    clf.fit(Xtr, ytr)
+    clf.fit(Xfit, yfit, eval_set=[(Xcal, ycal)], eval_metric="multi_logloss",
+            callbacks=[early_stopping(100)])
+    w = calibrate(clf.predict_proba(Xcal), clf.classes_, ycal)     # per-class macro-F1 weights
 
-    # --- predict the unlabelled test -------------------------------------------
+    # --- predict the unlabelled test (calibrated) ------------------------------
     Xte = fuse(args.feat_dir, args.emb_root, args.emb, "test")
     assert len(Xte) == N_TEST, f"expected {N_TEST} test frames, got {len(Xte)}"
-    pred = clf.predict(Xte).astype(int)
+    pred = np.asarray(CLASSES)[aligned_proba(clf, Xte, w).argmax(1)].astype(int)
     uniq, cnt = np.unique(pred, return_counts=True)
     dist = {CLASS_NAMES[c - 1]: round(n / len(pred), 3) for c, n in zip(uniq, cnt)}
     print(f"[submit] test pred distribution: {dist}", flush=True)
@@ -106,7 +122,7 @@ def main() -> int:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     log.write_text(log.read_text() + (
         f"| {args.version} | {ts} | {cfg} | {_git_sha()} | {out.name} "
-        f"| ~0.803 (temporal; bracket 0.725-0.803) | Phase-B all-val; argmax; det |\n"))
+        f"| ~0.803 (temporal; bracket 0.725-0.803) | FIT-train + TUNE-calibrated; det |\n"))
     print(f"[submit] logged -> {log}", flush=True)
     return 0
 

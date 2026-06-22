@@ -22,9 +22,14 @@ cd "$PROJECT_DIR"
 bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
 M=notebooks/mdaniol/modeling
+FEAT="$PROJECT_DIR/dataset_parquet_features"
+SPLIT="$M/artifacts/val_split_temporal.npy"
 
 # guardrail gate first (don't ship from broken code)
 python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >&2; exit 1; }
+
+# the submission calibrates on val[TUNE] of the temporal split — ensure it exists
+[ -f "$SPLIT" ] || python $M/split.py --scheme temporal --embargo 100 --feat-dir "$FEAT" --out "$SPLIT"
 
 echo "[$(date)] building submission (${VERSION:-v1}, emb=${EMB:-moment-small_V1})"
 python $M/submit_fusion.py --version "${VERSION:-v1}" --emb "${EMB:-moment-small_V1}" \
