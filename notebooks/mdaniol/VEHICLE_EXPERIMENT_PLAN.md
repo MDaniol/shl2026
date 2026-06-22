@@ -94,15 +94,30 @@ results, leakage-audited — an IMWUT/HASCA-style contribution.
   MI-placement 0.058. **Caveats:** signal is mainly **Car** + motorized-vs-pedestrian (Bus≈Train,
   no help for Car/Bus or rail); peak freq pegged at 18 Hz for all classes → **elevated broadband
   vibration, NOT a confirmed firing-frequency tone**. (`VIBRATION_DIAGNOSTIC.md`)
-- **H2 (raw-axis mag rail): PROMISING but LEAKAGE-RISKY.** Train |B| DC 79.3 vs Subway 71.2
-  (Δ+8.1) — real raw-axis signal the magnitude expert can't use. But DC field ≈ route/geography
-  and we have **no session/route key** for leave-one-route validation → cannot validate safely
-  yet. Research-only until a route key is recovered.
+- **H2 (raw-axis / gravity-referenced mag rail): TESTED → NEGATIVE.** Recovered a leakage-safe
+  trip key for free: the parquet rows are in acquisition order (median contiguous run = 165
+  windows), so maximal same-label runs = journeys → **9 Train + 6 Subway bouts**. Tested the
+  user's *bottom-vs-top power* hypothesis with **gravity-referenced** magnetometer features
+  (B·ĝ vertical, B_horiz, |B|, inclination, mag AC-band energy — orientation-robust via the
+  accelerometer gravity vector). The vertical field IS visibly different (Subway clustered
+  negative −17…−45; only Train goes positive/extreme), but it **does not classify**:
+  - **Leave-one-bout-out = 10/15 = 0.67** vs bout-majority **0.60** (only 2/6 Subway right) —
+    at baseline within small-N noise.
+  - **Optimistic route-mixed window-CV = 0.61** (≈50/50 balance) — i.e. *even allowing route
+    leakage* the magnetometer barely carries Train/Subway signal.
+  Three compounding reasons it fails *here*: (1) SHL = U. Sussex / UK, where Southern mainline
+  **and** the Underground are largely **DC third/fourth rail (both bottom-ish)** → top-vs-bottom
+  muddied; (2) UK AC traction is **50 Hz = our Nyquist** → the route-*independent* AC-tone is
+  undetectable at 100 Hz; (3) only **15 bouts** → can't separate weak signal from noise. The
+  magnetic cue that exists is **route-specific, not mode-specific** (per-bout |B| swings 30→103).
+  Physically sound hypothesis; does not manifest as a usable signal in this dataset.
 
-**Decision:** drop V4 from the submission line. Engine-band features (H1) = a safe, paper-worthy
-ablation with modest leaderboard EV. H2 = highest potential (targets the 984-frame Subway→Train)
-but blocked on leakage validation. Honest expectation: vehicle work is a **characterization
-contribution**, not a large macro lever.
+**Decision:** drop V4 from the submission line; H2 closed as a **negative**. Engine-band (H1) =
+a safe, paper-worthy ablation with modest leaderboard EV. Honest conclusion across V4/H1/H2:
+**at 100 Hz, IMU+magnetometer cannot cleanly separate the hard vehicle pairs** (Car/Bus needs
+GPS; Train/Subway needs higher sampling or a barometer; the magnetic cue is route- not
+mode-specific). This is a **characterization contribution**, not a macro lever — value is the
+honest, leakage-audited negative, not a leaderboard gain.
 
 ## Sources
 Engine firing-frequency + real 100 Hz idle (26 Hz car, 22 Hz minibus, 35 Hz bus); Sentiance
