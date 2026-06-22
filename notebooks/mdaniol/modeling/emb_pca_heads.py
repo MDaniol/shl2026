@@ -107,11 +107,12 @@ def main() -> int:
                   f"Subway={r_te.per_class_f1[8]:.3f}", flush=True)
             with track("mdaniol", run_name=f"embpca_{args.emb}_{tag}", seed=0,
                        params_path=None,
-                       params={"emb": args.emb, "pca": pca_k, "head": head, "dim": int(Etr.shape[1])},
+                       params={"emb": args.emb, "pca": pca_k, "head": head,
+                               "dim": int(Etr.shape[1]), "split": args.split.stem},
                        tags={"phase": "emb", "branch": "fm_linear"}) as run:
                 run.log_eval(r_te, prefix="test_")
                 run.log_eval(r_tu, prefix="tune_")
-                run.log_metrics({"selection_lock_gap": gap})
+                run.log_metrics({"macro_f1": r_te.macro_f1, "selection_lock_gap": gap})
 
     hdr = f"\n## {args.emb} (dim {Etr.shape[1]})  — L2+StandardScaler+PCA -> linear head\n\n" \
           "| head | TEST macro-F1 | TUNE macro-F1 | sel-lock gap | Train F1 | Subway F1 |\n" \

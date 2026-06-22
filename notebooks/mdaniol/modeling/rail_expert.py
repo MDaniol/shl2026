@@ -132,11 +132,12 @@ def main() -> int:
                   f"TEST={r_te.macro_f1:.4f} (Δtest {d_te:+.4f}) Train={r_te.per_class_f1[7]:.3f} "
                   f"Subway={r_te.per_class_f1[8]:.3f}", flush=True)
             with track("mdaniol", run_name=f"rail_tr{tau_rail}_tc{tau_conf}", seed=0,
-                       params_path=None, params={"tau_rail": tau_rail, "tau_conf": tau_conf},
+                       params_path=None,
+                       params={"tau_rail": tau_rail, "tau_conf": tau_conf, "split": args.split.stem},
                        tags={"phase": "rail", "branch": "rail_expert"}) as run:
                 run.log_eval(r_te, prefix="test_")
                 run.log_eval(r_tu, prefix="tune_")
-                run.log_metrics({"delta_macro_test_vs_base": d_te})
+                run.log_metrics({"macro_f1": r_te.macro_f1, "delta_macro_test_vs_base": d_te})
 
     best = max(rows, key=lambda r: r[2])             # selected by TUNE macro
     keep = best[4] > 0                               # KEEP iff that choice beats base on TEST

@@ -139,11 +139,11 @@ def main() -> int:
         print(f"  {name:18s} TEST={r_te.macro_f1:.4f} TUNE={r_tu.macro_f1:.4f} gap={gap:+.4f} "
               f"Train={r_te.per_class_f1[7]:.3f} Subway={r_te.per_class_f1[8]:.3f}", flush=True)
         with track("mdaniol", run_name=f"fusion_{name}", seed=0, params_path=None,
-                   params={"branches": "+".join(names), "config": name},
+                   params={"branches": "+".join(names), "config": name, "split": args.split.stem},
                    tags={"phase": "fusion", "branch": "fusion"}) as run:
             run.log_eval(r_te, prefix="test_")
             run.log_eval(r_tu, prefix="tune_")
-            run.log_metrics({"selection_lock_gap": gap})
+            run.log_metrics({"macro_f1": r_te.macro_f1, "selection_lock_gap": gap})
 
     g_te = results["global_hc"]["test"].macro_f1
     best = max(results, key=lambda n: results[n]["tune"].macro_f1)        # select on TUNE

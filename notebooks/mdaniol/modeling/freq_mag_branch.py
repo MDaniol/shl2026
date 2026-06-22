@@ -141,11 +141,12 @@ def main() -> int:
               f"gap={gap:+.4f} Train={r_te.per_class_f1[7]:.3f} "
               f"Subway={r_te.per_class_f1[8]:.3f}", flush=True)
         with track("mdaniol", run_name=f"freqmag_{head}", seed=0, params_path=None,
-                   params={"head": head, "n_features": len(sel), "n_magnetometer": n_mag},
+                   params={"head": head, "n_features": len(sel), "n_magnetometer": n_mag,
+                           "split": args.split.stem},
                    tags={"phase": "freqmag", "branch": "freq_mag"}) as run:
             run.log_eval(r_te, prefix="test_")
             run.log_eval(r_tu, prefix="tune_")
-            run.log_metrics({"selection_lock_gap": gap})
+            run.log_metrics({"macro_f1": r_te.macro_f1, "selection_lock_gap": gap})
 
     hdr = (f"# Step 2 — frequency + magnetometer branch ({len(sel)} features, "
            f"{n_mag} magnetometer; lock-test=TEST, selection=TUNE)\n\n"

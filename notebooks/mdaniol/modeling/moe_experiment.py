@@ -197,11 +197,13 @@ def main() -> int:
         print(f"  {name:24s} TEST={r_te.macro_f1:.4f} TUNE={r_tu.macro_f1:.4f} "
               f"gap={gap:+.4f} Train={r_te.per_class_f1[7]:.3f} Subway={r_te.per_class_f1[8]:.3f}")
         with track("mdaniol", run_name=f"moe_{args.rep}_{name}", seed=0, params_path=None,
-                   params={"rep": args.rep, "emb": args.emb, "config": name},
+                   params={"rep": args.rep, "emb": args.emb, "config": name,
+                           "split": args.split.stem},
                    tags={"phase": "moe", "branch": "location"}) as run:
             run.log_eval(r_te, prefix="test_")
             run.log_eval(r_tu, prefix="tune_")
-            run.log_metrics({"selection_lock_gap": gap, "router_acc": router_acc})
+            run.log_metrics({"macro_f1": r_te.macro_f1,        # bare key -> team leaderboard
+                             "selection_lock_gap": gap, "router_acc": router_acc})
 
     # --- decision summary + results table --------------------------------------
     # Select the best DEPLOYABLE config on the SELECTION split (TUNE), then read its
