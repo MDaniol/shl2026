@@ -56,6 +56,16 @@ def raw_lib(acc, gyr, mag) -> dict:
     return lib
 
 
+def rotate_sensors(acc, gyr, mag, mode, max_tilt_deg, rng):
+    """Apply ONE per-window 3D rotation jointly to acc/gyr/mag (shared device frame).
+    Reuses the validated augment.rotation_matrices. Orthogonal -> per-sample magnitude
+    preserved, so handcrafted magnitude features are invariant; only axis-based FM inputs
+    change. Physically = 'what if the phone were mounted at a different orientation'."""
+    import augment as aug
+    M = aug.rotation_matrices(acc, mode, max_tilt_deg, rng)        # (n,3,3)
+    return aug._apply_R(M, acc), aug._apply_R(M, gyr), aug._apply_R(M, mag)
+
+
 def build_embedder(model: str, device: str, tf_batch: int):
     if model in ("mantisv2", "mantis8m", "utica"):
         from mantis.trainer import MantisTrainer
@@ -117,6 +127,20 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0,
                     help="cap windows per file for a smoke test (0 = all). Use a "
                          "throwaway --emb-dir so the partial output isn't cached.")
+    # --- rotation TTA (test-time aug): mean embedding over K random reorientations -------
+    ap.add_argument("--rotation", choices=["none", "so3", "gravity_aware"], default="none",
+                    help="rotate raw axes before the FM (none=current behavior). Helps the "
+                         "axis-based FM input under the unknown test orientation; no-op for "
+                         "magnitude features.")
+    ap.add_argument("--tta-k", type=int, default=0,
+                    help="if >0 with --rotation, write the MEAN embedding over K rotated copies "
+                         "(rotation-marginalized representation). Output dir gets a _tta tag so "
+                         "originals are not clobbered; the existing probe/submit consume it via --emb.")
+    ap.add_argument("--max-tilt-deg", type=float, default=30.0, help="gravity_aware tilt bound")
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--splits", default="train,validation,test",
+                    help="which splits to extract (comma list) — e.g. 'validation,test' for "
+                         "eval-time-only TTA to save the costly train re-extraction.")
     ap.add_argument("--prefetch", action="store_true",
                     help="only download + cache the model weights (HF_HOME) then exit. "
                          "Run serially per model BEFORE a parallel array to avoid the "
@@ -132,13 +156,20 @@ def main() -> int:
         print(f"[prefetch] {args.model} cached. Safe to run the parallel array now.", flush=True)
         return 0
 
+    if args.tta_k and args.rotation == "none":
+        ap.error("--tta-k requires --rotation so3|gravity_aware")
     embed, packer = build_embedder(args.model, args.device, args.tf_batch)
-    outdir = args.emb_dir / f"{args.model}_{args.variant}"
+    tag = f"{args.model}_{args.variant}" + (f"_tta{args.tta_k}{args.rotation}" if args.tta_k else "")
+    outdir = args.emb_dir / tag
     outdir.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(args.seed)
+    want = set(args.splits.split(","))
+    jobs = [(s, l) for s, l in JOBS if s in want]
     print(f"[embed] model={args.model} variant={args.variant} device={args.device} "
-          f"chunk={args.chunk_size} tf_batch={args.tf_batch}", flush=True)
+          f"chunk={args.chunk_size} tf_batch={args.tf_batch} "
+          f"tta={args.tta_k or 'off'}/{args.rotation} splits={sorted(want)} -> {tag}", flush=True)
 
-    for split, loc in JOBS:
+    for split, loc in jobs:
         src = args.data_dir / split / f"{loc}.parquet"
         outp = outdir / f"{split}__{loc}.npy"
         if outp.exists():
@@ -155,10 +186,21 @@ def main() -> int:
             if pos + len(acc) > n_rows:          # trim final batch to the limit
                 k = n_rows - pos
                 acc, gyr, mag = acc[:k], gyr[:k], mag[:k]
-            lib = raw_lib(acc, gyr, mag) if args.variant == "V0" \
-                else fi.build_channel_library(acc, gyr, mag)
-            X, _ = packer(lib, args.variant)
-            e = embed(X)
+            def embed_one(a, g, m):
+                lib = raw_lib(a, g, m) if args.variant == "V0" \
+                    else fi.build_channel_library(a, g, m)
+                X, _ = packer(lib, args.variant)
+                return embed(X)
+
+            if args.tta_k:                       # mean embedding over K random reorientations
+                stack = None
+                for _k in range(args.tta_k):
+                    ra, rg, rm = rotate_sensors(acc, gyr, mag, args.rotation, args.max_tilt_deg, rng)
+                    ek = embed_one(ra, rg, rm)
+                    stack = ek if stack is None else stack + ek
+                e = (stack / args.tta_k).astype(np.float32)
+            else:
+                e = embed_one(acc, gyr, mag)
             if mm is None:
                 mm = open_memmap(outp, mode="w+", dtype=np.float32, shape=(n_rows, e.shape[1]))
             mm[pos:pos + len(e)] = e
