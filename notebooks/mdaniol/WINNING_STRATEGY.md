@@ -76,3 +76,38 @@ literature), reconciled against our own banked results. Confidence: [V]=verified
 Tier 1 (CPU, today) → Tier 2 re-extraction (GPU) → Tier 3 cross-FM (UniMTS/NormWear) →
 write the paper around the audit + negatives + calibration. Validate every step on the
 leave-subjects/temporal-embargo split; never peek at the shuffled test. Track all (rule §8).
+
+## Reading list — prior editions (what won), with the test-ordering regime
+
+The organizers' per-year "Summary of the SHL Challenge" papers rank every team + describe each
+method — the best single sources. Ordered by relevance to OUR regime (shuffled test + frozen FM).
+[open] = free PDF, [acm] = paywalled (AGH login can pull authoritative rankings/per-class numbers).
+
+### Most relevant to us
+- **2018-2020 Three-Year Review** [open] — winners+methods for all 3 editions AND the
+  evaluation/leakage lessons (cross-user/position inflation 96→84→61→54%). THE read.
+  https://www.frontiersin.org/journals/computer-science/articles/10.3389/fcomp.2021.713719/full
+- **2025 (frozen-FM edition = our analogue)** [acm] — winner BabaAli: ensemble of 3 FROZEN FMs
+  (BIOT+CBraMod+MOMENT) → shallow MLP late fusion. https://dl.acm.org/doi/10.1145/3714394.3756217
+- **2024 (missing-modality, shuffled → no smoothing)** [acm] summary
+  https://dl.acm.org/doi/10.1145/3675094.3678456 ; + "Signal Sleuths" [open]: rotation-invariant
+  feats + CatBoost, mean+std > magnitude-only, dropping Hand helped. https://arxiv.org/html/2407.11048v1
+- **2019 lessons-learned (Janko et al.)** [open] — quantifies temporal smoothing ≈ +10 pp (the
+  lever we can't use); RandomForest+HMM beat their own deep nets. https://pmc.ncbi.nlm.nih.gov/articles/PMC9145859/
+
+### Less transferable (ordered tests / extra modalities)
+- **2020** [open] winner "We-can-fly" (Zhu): DenseNet+GRU on raw + phone→body-frame coordinate
+  transform, 88.5%. http://www.shl-dataset.org/wp-content/uploads/SHLChallenge2020/ubicomp20q-sub1004-cam-i7.pdf
+- **2021 (radio/GPS only)** [acm] summary https://dl.acm.org/doi/10.1145/3460418.3479373 ; winner
+  "DD" = AutoML on handcrafted radio features, 75.4%.
+- **2023 (motion+GPS, smoothing legal → 96%)** [open PDF]
+  https://qmro.qmul.ac.uk/xmlui/bitstream/handle/123456789/91549/Wang%20Summary%20of%20SHL%202023%20Accepted.pdf
+  ; [acm] https://dl.acm.org/doi/10.1145/3594739.3610758
+- Challenge index (hub for all years' proceedings): http://www.shl-dataset.org/activity-recognition-challenge/
+
+### Cross-edition pattern
+(1) Hybrid ML+DL ensembles win most editions; **GBDT on handcrafted features is repeatedly
+competitive/winning** (2019 RF, 2021 AutoML, 2024 CatBoost). (2) The biggest historical lever was
+**temporal smoothing (~+10 pp), legal only on ordered tests** — dead in shuffled editions (2020,
+2024 → 70-88%), which is our band. (3) **2025 confirms the frozen multi-FM-ensemble meta = table
+stakes, not an edge** — our edge is the metric-aligned post-hoc + rigor, not a flashier model.
