@@ -43,11 +43,22 @@ cd "$PROJECT_DIR"
 bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"   # ensure data symlinks
 mkdir -p notebooks/mdaniol/modeling/logs
 
-# ensure the split exists (deterministic; pre-generate once to avoid an array race)
+# ensure the split exists, RACE-SAFE across the array (order-independent): a task that
+# finds it missing writes a per-task temp .npy, then atomically claims it (mv -n: first
+# wins, the rest no-op). split.py is deterministic -> any task yields identical content.
+# Usually the split already exists (submit.sbatch made it), so this is skipped entirely.
 if [ "${USE_SPLIT:-1}" = "1" ] && [ ! -f "$SPLIT" ]; then
-  echo "[$(date)] generating $SCHEME split -> $SPLIT"
-  python notebooks/mdaniol/modeling/split.py --scheme "$SCHEME" --embargo 100 \
-      --feat-dir "$PROJECT_DIR/dataset_parquet_features" --out "$SPLIT"
+  TMP="${SPLIT%.npy}.task${SLURM_ARRAY_TASK_ID:-0}.tmp.npy"
+  echo "[$(date)] generating $SCHEME split (race-safe) -> $SPLIT"
+  if python notebooks/mdaniol/modeling/split.py --scheme "$SCHEME" --embargo 100 \
+        --feat-dir "$PROJECT_DIR/dataset_parquet_features" --out "$TMP"; then
+    mv -n "$TMP" "$SPLIT"
+    mv -n "${TMP%.npy}.json" "${SPLIT%.npy}.json" 2>/dev/null || true   # companion metadata
+  fi
+  rm -f "$TMP" "${TMP%.npy}.json"
+fi
+if [ "${USE_SPLIT:-1}" = "1" ] && [ ! -f "$SPLIT" ]; then
+  echo "[$(date)] FATAL: split $SPLIT unavailable" >&2; exit 1
 fi
 
 # skip (not fail) embedding sets that haven't been extracted yet — e.g. utica_V2

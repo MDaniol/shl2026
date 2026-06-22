@@ -207,14 +207,20 @@ def main() -> int:
         print(f"\n>>> FM verdict (split protocol): fusion {reps['fusion']['macro_f1']:.4f} "
               f"vs handcrafted-only {reps['handcrafted']['macro_f1']:.4f}  ->  "
               f"{d:+.4f} ({'FM HELPS' if d > 0 else 'FM does NOT help'})")
+        # blocked vs temporal rows coexist via an explicit `split` column. A legacy
+        # 5-column table (no split column) is auto-archived so old/new rows can't mix.
+        split_label = "temporal" if "temporal" in args.split.stem else "blocked"
         md = root / "notebooks/mdaniol/BAKEOFF_SPLIT.md"
+        header = ("# Bake-off (split protocol: User1+val[FIT] -> held-out TEST, calibrated)\n\n"
+                  "| emb (model_variant) | split | lgbm(emb) | lgbm(emb+hc) | lgbm(hc-only) | Δ vs hc |\n"
+                  "|---|---|---|---|---|---|\n")
+        if md.exists() and "| split |" not in md.read_text():
+            md.rename(md.with_name("BAKEOFF_SPLIT.legacy.md"))     # archive 5-col table, start fresh
         if not md.exists():
-            md.write_text("# Bake-off (split protocol: User1+val[FIT] -> held-out TEST, calibrated)\n\n"
-                          "| emb (model_variant) | lgbm(emb) | lgbm(emb+hc) | lgbm(hc-only) | Δ vs hc |\n"
-                          "|---|---|---|---|---|\n")
+            md.write_text(header)
         md.write_text(md.read_text() + (
-            f"| {args.emb} | {reps['emb']['macro_f1']:.4f} | {reps['fusion']['macro_f1']:.4f} "
-            f"| {reps['handcrafted']['macro_f1']:.4f} | {d:+.4f} |\n"))
+            f"| {args.emb} | {split_label} | {reps['emb']['macro_f1']:.4f} "
+            f"| {reps['fusion']['macro_f1']:.4f} | {reps['handcrafted']['macro_f1']:.4f} | {d:+.4f} |\n"))
         json_path = emb_dir / "probe_split_results.json"
         save_report(json_path, reps)
         # MLflow: one run per embedding set; split scheme + bare macro_f1 + artifacts (rule §8).
