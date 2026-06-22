@@ -28,8 +28,17 @@ No stage is skippable. A change is not "done" until stage 8.
 7. **Methodological assessment.** Confirm the change still satisfies the
    `GUARDRAILS.md` prime directives (select-on-TUNE, BHT eval, determinism, baseline
    kept) and the pre-HPC checklist is green.
-8. **Commit + log.** Versioned result file + `shl2026.track` run; commit with a
-   message that records the leakage-audit result and the git SHA discipline.
+8. **Commit + log (full traceability).** Versioned result file **and** a `shl2026.track`
+   MLflow run that is reproducible on its own. The run MUST:
+   - log `params=` including the **split scheme** (`"split": args.split.stem`) + the run's
+     knobs, and `tags=` the phase + KEEP/DISABLE decision;
+   - log `log_eval(r_te, prefix="test_")` + `log_eval(r_tu, prefix="tune_")`, a **bare
+     `macro_f1`** (= lock-test macro, so `leaderboard()` ranks it), and per-class F1;
+   - **snapshot artifacts** via `run.log_artifact(...)`: the result file (`*_RESULTS.md`/
+     JSON), the fitted model + calibration weights, and the split file (`track` already
+     auto-snapshots the code).
+   A missing `track`/artifact snapshot fails this gate, exactly like a leakage miss.
+   Commit with a message recording the leakage-audit result and the git SHA discipline.
 
 Only after stage 8 may a job be `sbatch`-ed.
 
@@ -80,7 +89,9 @@ be re-confirmed by reading the diff.
 - Stages 1–8 complete; the §3 checklist ticked in the commit message.
 - `pytest tests/` + the three `validate_*` suites pass locally.
 - Pre-HPC checklist (`GUARDRAILS.md §5`) green; `sbatch --test-only` accepted.
-- Result logged to MLflow (`shl2026.track`) and a versioned `*_RESULTS.md` written.
+- Result logged to MLflow (`shl2026.track`) **with artifacts snapshotted** (result file,
+  model + calibration weights, split; code auto-snapshotted) and a versioned `*_RESULTS.md`
+  written — split scheme + bare `macro_f1` present on the run.
 - The strong baseline is intact unless lock-test evidence supersedes it.
 
 ## References

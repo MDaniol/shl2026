@@ -21,6 +21,15 @@
 - **Reuse the team infra**: `env_mdaniol.sh`, the `hpc/*.sbatch` structure, MLflow via
   `track`, the `tests/` suite. Don't build parallel pipelines or touch the team
   `pyproject.toml`/`uv.lock`.
+- **Full MLflow traceability (every experiment).** Each experiment runner MUST log to
+  MLflow via `shl2026.track` **and snapshot its artifacts** so the run is reproducible on
+  its own. Inside `with track(...) as run:` — (1) `params=` includes the **split scheme**
+  (`"split": args.split.stem`) + the run's knobs, `tags=` the phase + KEEP/DISABLE decision;
+  (2) `log_eval(r_te, prefix="test_")` + `log_eval(r_tu, prefix="tune_")` **and a bare
+  `macro_f1`** (= lock-test macro, so `leaderboard()` ranks it) + per-class F1; (3)
+  `run.log_artifact(...)` the result file (`*_RESULTS.md`/JSON), the fitted model +
+  calibration weights, and the split file (`track` already auto-snapshots the code). A
+  missing `track`/artifact snapshot is a **failed Stage-8 gate**, like a leakage miss.
 
 ## Pre-HPC gate (must be green before any `sbatch`)
 ```bash
