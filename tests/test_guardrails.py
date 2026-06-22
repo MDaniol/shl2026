@@ -136,3 +136,14 @@ def test_lgbm_subsampling_is_seeded():
         if txt.count("subsample=") > txt.count("random_state="):
             offenders.append(f.name)
     assert not offenders, f"bagged LightGBM without random_state in: {offenders}"
+
+
+def test_loaders_route_test_to_single_all_file():
+    """Regression: the test set is one merged 'all' file (no per-location, no Hand), so
+    the loaders must NOT iterate Bag/Hips/Torso/Hand for split=='test' (that was a
+    FileNotFoundError on dataset_parquet_features/test/Bag.parquet). train/validation
+    still load per body location."""
+    import probe_fusion as pf
+    assert pf.split_locs("test") == ("all",)
+    assert pf.split_locs("train") == pf.LOCATIONS
+    assert pf.split_locs("validation") == pf.LOCATIONS

@@ -31,8 +31,14 @@ from sklearn.metrics import f1_score
 from metrics import class_report, save_report
 
 LOCATIONS = ("Bag", "Hips", "Torso", "Hand")
-TEST_LOCS = ("Bag", "Hips", "Torso")
+TEST_LOCS = ("Bag", "Hips", "Torso")          # the BHT locations mirrored at test (eval masks)
 CLASSES = list(range(1, 9))
+
+
+def split_locs(split: str) -> tuple[str, ...]:
+    """File tokens to load for a split. train/validation are stored per body location;
+    the test set is a single merged, shuffled file ('all' — no per-location, no Hand)."""
+    return ("all",) if split == "test" else LOCATIONS
 
 
 def macro_f1(y, p):
@@ -40,7 +46,7 @@ def macro_f1(y, p):
 
 
 def load_emb(emb_dir: Path, split: str):
-    arr = np.concatenate([np.load(emb_dir / f"{split}__{loc}.npy") for loc in LOCATIONS], 0)
+    arr = np.concatenate([np.load(emb_dir / f"{split}__{loc}.npy") for loc in split_locs(split)], 0)
     # a few windows have constant channels -> FM z-score NaN; sanitize for linear heads
     np.nan_to_num(arr, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
     return arr
@@ -48,14 +54,14 @@ def load_emb(emb_dir: Path, split: str):
 
 def load_labels(feat_dir: Path, split: str):
     ys, locs = [], []
-    for loc in LOCATIONS:
+    for loc in split_locs(split):
         df = pd.read_parquet(feat_dir / split / f"{loc}.parquet", columns=["label"])
         ys.append(df["label"].to_numpy()); locs.append(np.full(len(df), loc))
     return np.concatenate(ys), np.concatenate(locs)
 
 
 def load_feats(feat_dir: Path, split: str):
-    dfs = [pd.read_parquet(feat_dir / split / f"{loc}.parquet") for loc in LOCATIONS]
+    dfs = [pd.read_parquet(feat_dir / split / f"{loc}.parquet") for loc in split_locs(split)]
     df = pd.concat(dfs, ignore_index=True)
     cols = [c for c in df.columns if c != "label"]
     return df[cols].to_numpy(np.float32)
