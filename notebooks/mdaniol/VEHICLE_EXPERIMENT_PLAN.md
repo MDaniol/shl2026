@@ -81,6 +81,29 @@ GPS**; **Train/Subway = design-induced** (magnitude transform discards magnetic 
 no barometer); **engine band recoverable but idle-only at 100 Hz**. Negative + characterization
 results, leakage-audited — an IMWUT/HASCA-style contribution.
 
+## Phase-1 results (2026-06-22) — gate verdicts
+
+- **V4 VehicleExpert (magnetometer-*magnitude*): DISABLE — decisive.** All 48 gate configs
+  negative on the locked temporal split (base macro 0.8029 → best expert 0.7989, Δ≤−0.0042;
+  Δvehicle ≤ −0.0081), firing on 6k–9k frames. Confirms the magnitude transform destroys the
+  discriminative magnetic direction → the *features* are wrong, not the architecture. This is
+  the documented "before" baseline for the raw-axis redesign. (`VEHICLE_EXPERT_RESULTS.md`)
+- **H1 (engine band): SUPPORTED but MODEST.** 18–40 Hz body-acc ratio: Car 0.088, Bus 0.052
+  vs Still 0.039 / Walk 0.019 / Bike 0.012 / Train 0.049 / Subway 0.030. Vehicles 0.070 vs
+  reference 0.039 (~1.8×). Leakage tripwire PASSED: `engine_energy` MI-class 0.44 ≫
+  MI-placement 0.058. **Caveats:** signal is mainly **Car** + motorized-vs-pedestrian (Bus≈Train,
+  no help for Car/Bus or rail); peak freq pegged at 18 Hz for all classes → **elevated broadband
+  vibration, NOT a confirmed firing-frequency tone**. (`VIBRATION_DIAGNOSTIC.md`)
+- **H2 (raw-axis mag rail): PROMISING but LEAKAGE-RISKY.** Train |B| DC 79.3 vs Subway 71.2
+  (Δ+8.1) — real raw-axis signal the magnitude expert can't use. But DC field ≈ route/geography
+  and we have **no session/route key** for leave-one-route validation → cannot validate safely
+  yet. Research-only until a route key is recovered.
+
+**Decision:** drop V4 from the submission line. Engine-band features (H1) = a safe, paper-worthy
+ablation with modest leaderboard EV. H2 = highest potential (targets the 984-frame Subway→Train)
+but blocked on leakage validation. Honest expectation: vehicle work is a **characterization
+contribution**, not a large macro lever.
+
 ## Sources
 Engine firing-frequency + real 100 Hz idle (26 Hz car, 22 Hz minibus, 35 Hz bus); Sentiance
 (Car/Bus near-impossible w/o GPS); SHL 3-year review; rail vibration ~63 Hz; magnetometer-TMD
