@@ -104,6 +104,21 @@ def test_moe_combine_self_test():
     moe.self_test()   # raises on any violation
 
 
+# --- temporal split must be time-disjoint with an embargo gap -----------------
+def test_temporal_split_time_disjoint():
+    """Conservative split: FIT must end before TEST begins, with an embargo gap,
+    so FIT/TEST can't share a journey (the 0.90->0.71 over-claim guard, L3.2)."""
+    from split import temporal_phase, FIT, TUNE, TEST, UNUSED
+    import numpy as np
+    n, emb = 10000, 100
+    ph = temporal_phase(n, emb)
+    fit_i, tune_i, test_i = np.where(ph == FIT)[0], np.where(ph == TUNE)[0], np.where(ph == TEST)[0]
+    assert fit_i.max() < tune_i.min() < test_i.min(), "slices not in time order"
+    assert tune_i.min() - fit_i.max() - 1 >= emb - 1, "no embargo gap before TUNE"
+    assert test_i.min() - tune_i.max() - 1 >= emb - 1, "no embargo gap before TEST"
+    assert (ph == UNUSED).sum() == 2 * emb, "embargo rows wrong count"
+
+
 # --- determinism: every bagged LightGBM must be seeded ------------------------
 def test_lgbm_subsampling_is_seeded():
     """`subsample<1` makes LightGBM stochastic; without random_state results vary
