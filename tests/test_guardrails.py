@@ -105,18 +105,24 @@ def test_moe_combine_self_test():
 
 
 # --- temporal split must be time-disjoint with an embargo gap -----------------
-def test_temporal_split_time_disjoint():
-    """Conservative split: FIT must end before TEST begins, with an embargo gap,
-    so FIT/TEST can't share a journey (the 0.90->0.71 over-claim guard, L3.2)."""
+def test_temporal_split_time_disjoint_and_class_complete():
+    """Conservative split must be BOTH (a) time-disjoint per class — that class's
+    FIT occurrences end before its TEST occurrences, with an embargo gap (the
+    0.90->0.71 over-claim guard, L3.2) — AND (b) class-complete: every class present
+    in FIT/TUNE/TEST (a global cut drops session-clustered classes -> F1=0)."""
     from split import temporal_phase, FIT, TUNE, TEST, UNUSED
     import numpy as np
-    n, emb = 10000, 100
-    ph = temporal_phase(n, emb)
-    fit_i, tune_i, test_i = np.where(ph == FIT)[0], np.where(ph == TUNE)[0], np.where(ph == TEST)[0]
-    assert fit_i.max() < tune_i.min() < test_i.min(), "slices not in time order"
-    assert tune_i.min() - fit_i.max() - 1 >= emb - 1, "no embargo gap before TUNE"
-    assert test_i.min() - tune_i.max() - 1 >= emb - 1, "no embargo gap before TEST"
-    assert (ph == UNUSED).sum() == 2 * emb, "embargo rows wrong count"
+    # 8 classes, each a contiguous time-run of 500 rows (mimics session bouts)
+    y = np.repeat(np.arange(1, 9), 500)
+    ph = temporal_phase(y, embargo=10)
+    for c in range(1, 9):
+        idx = np.where(y == c)[0]
+        f, t = idx[ph[idx] == FIT], idx[ph[idx] == TEST]
+        assert len(f) and len(t), f"class {c} missing from FIT or TEST"
+        assert f.max() < t.min(), f"class {c}: FIT not before TEST"
+    for code in (FIT, TUNE, TEST):                       # class-complete
+        assert set(np.unique(y[ph == code])) == set(range(1, 9)), "a class is missing from a slice"
+    assert (ph == UNUSED).sum() > 0, "no embargo gap"
 
 
 # --- determinism: every bagged LightGBM must be seeded ------------------------

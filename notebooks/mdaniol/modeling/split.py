@@ -62,17 +62,29 @@ def load_split_with_location_map(split_path, feat_dir):
     return assign, loc_offsets
 
 
-def temporal_phase(n: int, embargo: int) -> np.ndarray:
-    """Conservative time-cut for one location (rows are in recording order):
-    first 60% -> FIT, next 20% -> TUNE, last 20% -> TEST, with an `embargo` gap
-    (marked UNUSED) at each boundary so FIT and TEST are temporally separated and
-    cannot share a journey/session. Guarantees max(FIT idx) < min(TEST idx)."""
+def temporal_phase(y: np.ndarray, embargo: int) -> np.ndarray:
+    """Conservative, class-complete time-cut for one location (rows in recording
+    order). PER CLASS: that class's earliest 60% -> FIT, next 20% -> TUNE, latest
+    20% -> TEST, with a (class-size-capped) embargo gap at each boundary. So FIT and
+    TEST are temporally separated (early vs late occurrences -> no shared journey,
+    unlike interleaved blocks) AND every class stays present in every slice (a GLOBAL
+    cut drops session-clustered classes like Subway -> F1=0). Per class:
+    max(FIT idx) < min(TEST idx)."""
+    n = len(y)
     phase = np.full(n, FIT, dtype=np.int8)
-    cut1, cut2 = int(0.60 * n), int(0.80 * n)
-    phase[cut1:cut1 + embargo] = UNUSED
-    phase[cut1 + embargo:cut2] = TUNE
-    phase[cut2:cut2 + embargo] = UNUSED
-    phase[cut2 + embargo:] = TEST
+    for c in range(1, 9):
+        idx = np.where(y == c)[0]                      # this class's rows, time-ordered
+        nc = len(idx)
+        if nc < 5:                                     # too few to split; leave in FIT
+            continue
+        e = min(embargo, max(0, nc // 20))             # cap embargo at ~5% of the class
+        cut1, cut2 = int(0.60 * nc), int(0.80 * nc)
+        ph = np.full(nc, FIT, dtype=np.int8)
+        ph[cut1:cut1 + e] = UNUSED
+        ph[cut1 + e:cut2] = TUNE
+        ph[cut2:cut2 + e] = UNUSED
+        ph[cut2 + e:] = TEST
+        phase[idx] = ph
     return phase
 
 
@@ -99,7 +111,7 @@ def main() -> int:
         n = len(y)
         phase = np.full(n, FIT, dtype=np.int8)
         if args.scheme == "temporal":
-            phase = temporal_phase(n, args.embargo)
+            phase = temporal_phase(y, args.embargo)
         else:
             # PER-CLASS contiguous-block interleave so every class appears in every slice
             # (Run is rare + temporally clustered). NOTE: optimistic — FIT/TEST blocks are
