@@ -34,7 +34,7 @@ uv pip install --reinstall torch --index-url https://download.pytorch.org/whl/cu
 
 # rest of the FM stack (same pins as Athena; all have aarch64 wheels)
 uv pip install "transformers==4.44.2" "huggingface_hub==0.25.2" "tokenizers>=0.19,<0.20" \
-               safetensors einops datasets lightgbm tsfel statsmodels pycatch22
+               safetensors einops datasets lightgbm tsfel statsmodels pycatch22 mlflow
 uv pip install --no-deps momentfm mantis-tsfm
 
 python - <<'PY'

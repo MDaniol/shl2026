@@ -234,7 +234,8 @@ def main() -> int:
                          "windows_per_sec": total_win / max(secs, 1e-9)})
         run.log_artifact(mpath)
     print(f"[embed] done — {total_win} win in {secs:.0f}s "
-          f"({total_win/max(secs,1e-9):.0f}/s); MLflow logged", flush=True)
+          f"({total_win/max(secs,1e-9):.0f}/s); manifest {mpath} "
+          f"(MLflow logged iff mlflow is installed + MLFLOW_TRACKING_URI set)", flush=True)
     return 0
 
 
