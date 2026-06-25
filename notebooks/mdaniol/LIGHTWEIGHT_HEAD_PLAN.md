@@ -55,6 +55,53 @@ BHT eval; per-window. All runs MLflow-logged + artifact-snapshotted (rule §8).
 - **Flat (also publishable):** "mean-pool is sufficient for frozen IMU FMs on this data" — a clean
   negative + the rigorous eval is the contribution.
 
-## Open: literature (filled by the 2026-06-25 deep-research pass)
-What pooling/attention/channel/parameter-efficient head designs work for frozen TS/IMU FMs and HAR;
-macro-F1/imbalance-aware head training; small-data overfit control. → see agent reports.
+## Literature synthesis (deep research, 2026-06-25 — 3 HAR-FM agents)
+Convergent, evidence-backed findings (citations are the load-bearing ones):
+1. **Cheap fixed pooling is the workhorse; learned attention is the fragile part.** `mean⊕max⊕std⊕GeM`
+   reliably beats mean at ~0 params, very low overfit risk (Okabe 1803.10963: *std more effective than
+   attention*; adding attention alone *hurt*). Learned/attention pooling **overfits small data**
+   (Unmute, arXiv:2509.24901: ±9 seed variance, falls below linear at 64-shot). → multi-stat pooling
+   FIRST, not attention pooling.
+2. **Per-channel concat > mean** (COMODO 2503.07259, +1.8/+6.8 pp on IMU) — the FM embeds channels
+   independently; keep them separate.
+3. **THE novel head = cross-channel mixing** (SE-block / channel self-attention over the 9 per-channel
+   embeddings) — recovers cross-axis coupling a channel-independent FM *provably discards*; a tree can't.
+   SE = low-param/low-risk version; attention = higher-variance upgrade. (THAT AAAI'21; SE/scSE 1808.08127.)
+4. **Fusion = calibrated soft-voting over the top-2 FMs** (convex weights, calibrate-then-average):
+   **+1–3 pp, lowest risk**, the SHL-2025-winner recipe. **NOT** token-level cross-attention (overfit;
+   MBT 2107.00135 shows dense cross-attn redundant). "Diversity, not routing" — explains our router ≈0.
+5. **Imbalance reframe:** Train/Subway is a **confusion** problem, not frequency → balanced-softmax/LDAM
+   are off-target (Run already 0.96). Post-hoc logit-adjustment ≈ our calibration → **already captured**
+   (Tier-1 tapped out, confirmed). The one targeted loss = **focal** (targets confusion *and* improves
+   calibration; Mukhoti 2002.09437).
+6. **FiLM fusion** of embedding + handcrafted (handcrafted steers/denoises the embedding; 1709.07871) —
+   safer than concat on small data.
+7. **Rail's only real shot:** gravity-canonicalization + **RAW mag axes** (EqNIO 2408.06321) — keeps
+   orientation-robustness while restoring the directional mag signature that magnitude-streams destroyed
+   (explains our H2 negative). High-variance.
+8. **The 0.9→0.71 gap is likely EVALUATION (subject leakage), not head overfit** — HAR record-wise vs
+   leave-subjects-out inflation ~10–14 pp ≈ our gap. Honest subject-disjoint selection is the real fix.
+   (Our temporal+embargo + train-User1/test-Users2&3 mostly covers it; TUNE/TEST share users 2&3, but so
+   does the challenge test, so it's appropriate here.)
+9. **Zero-param robust baselines / ceiling check:** NCM+CL2N (SimpleShot 1911.04623) + k-NN geometry
+   audit (DINO) tell us whether frozen MOMENT even separates the 8 classes across users; Pro² (2302.05441)
+   bottleneck head for shift (+5–15%).
+
+**DON'T** (convergent negatives): patch-attention pooling first · token-level cross-FM cross-attention ·
+soft-F1 surrogates · temporal-attention heads (target the easy cadence classes) · graph-nets over axes ·
+frequency-imbalance losses · kitchen-sink ensembling.
+
+## Ranked build order (lowest-regret first)
+1. **Enable token + per-channel extraction** (`extract_embeddings.py --per-channel` / `--tokens`). [GPU, prereq]
+2. **Multi-stat pooling (mean⊕max⊕std⊕GeM) + per-channel concat → LGBM**, plus a **k-NN/NCM geometry
+   audit** (the ceiling). Cheap, reliable, tree-compatible. [CPU]
+3. **Cross-channel SE head** (the novel paper contribution); channel-attention as the upgrade — small
+   PyTorch head harness, heavy regularization + seeds. [CPU/light-GPU]
+4. **After the bake-off:** calibrated **soft-voting top-2 FMs** + **FiLM fusion** (embedding+handcrafted). [CPU]
+5. **Targeted rail bets (high-variance, only if 2–4 plateau):** focal loss · gravity-canon + raw-mag ·
+   cost-sensitive Train↔Subway penalty.
+
+All under: select on TUNE / lock TEST once, ≥3 seeds (attention heads are high-variance), per-class +
+the Train↔Subway off-diagonal reported, calibrate-before-average. Agent reports in session log + agent
+memory (`reference_frozen_head_pooling.md`, `reference_har_head_architectures.md`,
+`reference_imbalance_macrof1_heads.md`, `reference_cross_fm_fusion_heads.md`).
