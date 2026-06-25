@@ -57,8 +57,43 @@ squeue --me
 cat notebooks/mdaniol/TIER1_RESULTS.md
 ```
 
-## Later (optional, harder): Helios GH200 for FM extraction
-Only if you want the GH200's speed for embedding extraction. Requires an **aarch64 Apptainer
-image** with torch (aarch64+CUDA/sbsa build) + the FM stack (`scripts/build_container.sh` is the
-starting point), grant `plgshl26-gpu-gh200` / `plgrid-gpu-gh200`. Non-trivial — keep extraction on
-Athena unless we invest in this.
+## §GPU — FM extraction on Helios GH200 (aarch64) — the harder path
+Use this to extract FM embeddings (MOMENT/Mantis/UTICA/Mantis8M) on the GH200. It's fast but
+aarch64-risky (the torch-on-GH200 install is the part that may need iteration). **Smoke-test before
+committing to a full run.** Grant `plgshl26-gpu-gh200` / `plgrid-gpu-gh200` (48h).
+
+### 1. Build the aarch64 FM env (on Helios)
+```bash
+cd ~/shl2026 && ./scripts/setup_env.sh             # core env (once)
+bash notebooks/mdaniol/hpc/add_fm_deps_helios.sh   # aarch64 torch+CUDA + FM stack
+# -> prints torch version + "FM stack imports OK on aarch64" (cuda=False on login is fine)
+```
+If the torch install/import fails on GH200: check `nvidia-smi` for the CUDA driver and edit the
+index in `add_fm_deps_helios.sh` (try `cu126` or `cu121`). If it keeps fighting, fall back to
+**Athena** for extraction — the CPU bake-off can still run on Helios afterwards.
+
+### 2. Put the RAW data on Helios group storage (pr3)
+Extraction needs the raw windows (not just features). From **Athena**:
+```bash
+rsync -a $SCRATCH/../dataset_parquet \
+      plgmdaniol@helios.cyfronet.pl:$PLG_GROUPS_STORAGE/plggmhealth/   # raw, ~15 GB
+#   (raw lives at $PLG_GROUPS_STORAGE/plggmhealth/dataset_parquet — link_data.sh points there)
+```
+
+### 3. SMOKE-TEST (cheap — validates the GH200 + measures speed)
+```bash
+MODEL=mantis8m VARIANTS=V0 LIMIT=2000 sbatch notebooks/mdaniol/hpc/extract_fm_helios.sbatch
+tail -f notebooks/mdaniol/modeling/logs/extract_helios_*.out   # expect win/s + no CUDA errors
+```
+Only if the smoke run succeeds and the speed is acceptable, do the full extraction.
+
+### 4. Full extraction, then publish for the bake-off
+```bash
+MODEL=mantis8m VARIANTS="V0 V1 V2" sbatch notebooks/mdaniol/hpc/extract_fm_helios.sbatch
+# (repeat for mantisv2 / utica / moment-small as needed)
+bash notebooks/mdaniol/hpc/stage_to_group.sh emb     # publish embeddings -> group storage
+sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch  # CPU bake-off (runs on Helios CPU too)
+```
+
+**Reminder:** the *experiment* is unchanged — swapping FMs is just `--model X`. This whole section
+is only about making the aarch64 GPU usable; the framework itself is already FM-agnostic.
