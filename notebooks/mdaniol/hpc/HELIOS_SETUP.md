@@ -13,13 +13,13 @@ git clone git@github.com:MDaniol/shl2026.git ~/shl2026   # or HTTPS+PAT
 cd ~/shl2026 && git checkout mdaniol/shl-fm-pipeline && git pull
 ```
 
-### 2. Build the aarch64 venv (must be built ON Helios — x86 venv won't work)
-Use the Helios setup script — it resolves FRESH from pyproject for aarch64 (the shared uv.lock is
-x86, so `uv sync`/`setup_env.sh` does NOT work here). Tier 1 needs no torch, so this is light.
+### 2. Build the CPU env (x86 — Helios login + CPU partition are x86_64)
+Helios is HYBRID: login + CPU nodes are **x86_64**, only GH200 is aarch64. So the **CPU lane uses
+the normal x86 lock** — same as Athena/Ares. (The aarch64 GH200 env is a separate thing, §GPU.)
 ```bash
-uv --version || curl -LsSf https://astral.sh/uv/install.sh | sh   # if uv missing
-./scripts/setup_env_helios.sh                                    # aarch64 fresh resolve + lightgbm
+./scripts/setup_env.sh                          # x86 env from the lock (login node is x86)
 source notebooks/mdaniol/hpc/env_mdaniol.sh
+uv pip install lightgbm                          # tier1 / bake-off dep
 ```
 
 ### 3. Copy the data to Helios group storage (pr3)
@@ -58,12 +58,15 @@ Use this to extract FM embeddings (MOMENT/Mantis/UTICA/Mantis8M) on the GH200. I
 aarch64-risky (the torch-on-GH200 install is the part that may need iteration). **Smoke-test before
 committing to a full run.** Grant `plgshl26-gpu-gh200` / `plgrid-gpu-gh200` (48h).
 
-### 1. Build the aarch64 FM env (on Helios)
+### 1. Build the aarch64 FM env — ON A GH200 NODE (login is x86; can't build ARM wheels there)
 ```bash
-cd ~/shl2026 && ./scripts/setup_env_helios.sh      # aarch64 core env (fresh resolve, once)
+srun -A plgshl26-gpu-gh200 -p plgrid-gpu-gh200 --gres=gpu:1 --time=1:00:00 --pty bash   # get a GH200 node
+cd ~/shl2026
+./scripts/setup_env_helios.sh                      # aarch64 env at $SCRATCH/venvs/shl2026-gh200
 bash notebooks/mdaniol/hpc/add_fm_deps_helios.sh   # aarch64 torch+CUDA + FM stack
-# -> prints torch version + "FM stack imports OK on aarch64" (cuda=False on login is fine)
+# -> prints torch version + "FM stack imports OK on aarch64"
 ```
+(The aarch64 venv path is separate from the x86 one; `env_mdaniol.sh` auto-selects by CPU arch.)
 If the torch install/import fails on GH200: check `nvidia-smi` for the CUDA driver and edit the
 index in `add_fm_deps_helios.sh` (try `cu126` or `cu121`). If it keeps fighting, fall back to
 **Athena** for extraction — the CPU bake-off can still run on Helios afterwards.

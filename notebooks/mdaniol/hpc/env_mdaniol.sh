@@ -11,8 +11,14 @@
 # 1. group env: PLG paths, MLflow URI, (and UV_CACHE_DIR/TMPDIR if defined there)
 source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
 
-# 2. MY env (team lock + FM add-ons) — overrides env.sh's shared GROUP venv
-source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate"
+# 2. MY env — overrides env.sh's shared GROUP venv. Pick by CPU arch: Helios GH200 is aarch64
+#    (Grace ARM); everything else (Athena/Ares/Helios-CPU/login) is x86_64. ARM and x86 venvs are
+#    NOT interchangeable, so they live at separate paths.
+if [ "$(uname -m)" = "aarch64" ]; then
+  source "${SHL_VENV_AARCH64:-$SCRATCH/venvs/shl2026-gh200}/bin/activate"
+else
+  source "${SHL_VENV:-$SCRATCH/venvs/shl2026}/bin/activate"
+fi
 
 # 3. all caches off $HOME (10 GB quota) -> per-user $SCRATCH; HF runtime knobs
 export HF_HOME="${HF_HOME:-$SCRATCH/hf}"

@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
-# Helios (aarch64 / GH200) version of setup_env.sh.
+# Helios GH200 (aarch64 / Grace ARM) env builder — ONLY for the GH200 GPU partition.
 #
-# WHY a separate script: the shared uv.lock is resolved for x86 (Athena), so `uv sync` against it
-# does NOT work on Helios's ARM CPUs. Here we resolve FRESH from pyproject.toml for aarch64 and
-# fetch an aarch64 CPython. Trade-off: minor version drift vs the Athena lock (acceptable; note it
-# in the log for traceability). Builds the CPU env (core + lightgbm) — enough for tier1 / bake-off.
-# For GPU FM extraction, add the FM stack afterwards: notebooks/mdaniol/hpc/add_fm_deps_helios.sh
+# Helios is HYBRID: login + CPU nodes are x86_64 (use the normal scripts/setup_env.sh there — the
+# x86 uv.lock works). ONLY the GH200 GPU nodes are aarch64. ARM wheels can't be built on the x86
+# login node, so this script MUST be run ON a GH200 node:
 #
-#   ./scripts/setup_env_helios.sh        # rebuild anytime (after a $SCRATCH purge, etc.)
+#   srun -A plgshl26-gpu-gh200 -p plgrid-gpu-gh200 --gres=gpu:1 --time=1:00:00 --pty bash
+#   cd ~/shl2026 && ./scripts/setup_env_helios.sh        # then: add_fm_deps_helios.sh for the FM stack
+#
+# We resolve FRESH from pyproject for aarch64 (the x86 lock won't sync on ARM); minor version drift
+# vs Athena, acceptable for extraction. The aarch64 venv lives at a SEPARATE path so it never
+# clobbers the x86 venv.
 set -euo pipefail
 
 : "${SCRATCH:?must be set by the cluster at login}"
 [ "$(uname -m)" = "aarch64" ] || {
-  echo "Helios aarch64 setup, but host is $(uname -m) — use scripts/setup_env.sh on x86 (Athena/Ares)" >&2
+  echo "This must run on a GH200 (aarch64) node, but host is $(uname -m)." >&2
+  echo "Get one:  srun -A plgshl26-gpu-gh200 -p plgrid-gpu-gh200 --gres=gpu:1 --time=1:00:00 --pty bash" >&2
+  echo "(For the Helios CPU lane — tier1/bake-off — use scripts/setup_env.sh on the x86 login node.)" >&2
   exit 1; }
 
 # LMOD modules can pollute these and break a clean venv; clear them (mirrors setup_env.sh).
 unset PYTHONPATH PYTHONHOME PYTHONSTARTUP
-VENV="${SHL_VENV:-$SCRATCH/venvs/shl2026}"
+VENV="${SHL_VENV_AARCH64:-$SCRATCH/venvs/shl2026-gh200}"   # separate from the x86 venv
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$SCRATCH/uv-cache}"
 REPO="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)"
 cd "$REPO"
