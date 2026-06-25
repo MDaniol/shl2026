@@ -135,16 +135,7 @@ def main() -> int:
           f"TEST macro={best[4]:.4f} (Δ{best[5]:+.4f}) vehicle Δ{best[6]:+.4f} fired={best[7]} "
           f"-> {'KEEP' if keep else 'DISABLE'}")
 
-    # Track the deployable verdict: the best TUNE-selected config + its lock-test metrics.
-    with track("mdaniol", run_name=f"vexpert_{args.subset}", seed=0, params_path=None,
-               params={"subset": args.subset, "emb": args.emb, "split": args.split.stem,
-                       "tau_mass": best[0], "tau_conf": best[1], "lambda": best[2]},
-               tags={"phase": "vexpert", "branch": "vehicle_expert",
-                     "decision": "KEEP" if keep else "DISABLE"}) as run:
-        run.log_metrics({"macro_f1": best[4],              # bare key -> team leaderboard
-                         "base_macro_f1": base_s.macro_f1, "delta_macro": best[5],
-                         "delta_vehicle_macro": best[6], "fired": best[7]})
-
+    # write the result table first, then track + SNAPSHOT it as an MLflow artifact (rule §8).
     hdr = (f"# VehicleExpert {args.subset} {classes} on MOMENT-fusion ({args.emb}), temporal split.\n"
            f"base TEST macro={base_s.macro_f1:.4f}, vehicle-macro={vmacro(base_s):.4f}; "
            f"**{'KEEP' if keep else 'DISABLE'}** (selected on TUNE).\n\n"
@@ -153,6 +144,16 @@ def main() -> int:
     body = "".join(f"| {a} | {b} | {c} | {d:.4f} | {e:.4f} | {f:+.4f} | {g:+.4f} | {h} |\n"
                    for a, b, c, d, e, f, g, h in rows)
     args.out.write_text(hdr + body)
+
+    with track("mdaniol", run_name=f"vexpert_{args.subset}", seed=0, params_path=None,
+               params={"subset": args.subset, "emb": args.emb, "split": args.split.stem,
+                       "tau_mass": best[0], "tau_conf": best[1], "lambda": best[2]},
+               tags={"phase": "vexpert", "branch": "vehicle_expert",
+                     "decision": "KEEP" if keep else "DISABLE"}) as run:
+        run.log_metrics({"macro_f1": best[4],              # bare key -> team leaderboard
+                         "base_macro_f1": base_s.macro_f1, "delta_macro": best[5],
+                         "delta_vehicle_macro": best[6], "fired": best[7]})
+        run.log_artifact(args.out)
     print(f"wrote {args.out}")
     return 0
 
