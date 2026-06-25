@@ -50,3 +50,33 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
    flatness) → definitive `BAKEOFF_SPLIT.md`.
 4. **Paper** — leakage audit (0.87→0.80) + banked negatives + calibration-as-surviving-lever
    (HASCA rewards methodology/characterization).
+
+## Cluster division of labor
+- **Athena (GPU):** FM embedding *extraction* only (runs the frozen FM) — `extract_fm.sbatch`,
+  `tta_embeddings.sbatch`, `variant_sweep.sbatch`.
+- **Ares (CPU):** everything that consumes *cached* embeddings — `tier1_ares.sbatch`,
+  `probe_fusion_ares.sbatch`, fusion, post-hoc. Slim venv (no torch): `setup_env.sh` + `uv pip
+  install lightgbm`. Data reaches Ares via **group storage** (Athena `$SCRATCH` is invisible to Ares).
+
+## Runbook — Tier 1 (CPU, Ares) [running]
+```
+# Ares: env = setup_env.sh + lightgbm; data staged to group storage; then:
+sbatch notebooks/mdaniol/hpc/tier1_ares.sbatch   # -> TIER1_RESULTS.md (read cal(v1) vs logit_adj/mlls; Run F1; oracle ceiling)
+```
+
+## Runbook — temporal FM bake-off (re-check ALL FMs on the honest split) [pending]
+Goal: settle MantisV2 / Mantis8M / UTICA / MOMENT under temporal+embargo with current features.
+```
+# --- on ATHENA (GPU): extract the missing FM + publish cached ones to group storage ---
+cd ~/shl2026 && git pull
+MODEL=mantis8m VARIANTS="V0 V1 V2" sbatch notebooks/mdaniol/hpc/extract_fm.sbatch   # the only un-extracted family
+bash notebooks/mdaniol/hpc/stage_to_group.sh        # rsync features + ALL cached embeddings -> group storage
+#   (re-run stage_to_group.sh after mantis8m finishes to publish it)
+
+# --- on ARES (CPU): the heavy LightGBM bake-off over whatever is staged (missing FMs skip) ---
+cd ~/shl2026 && git pull
+sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch   # -> BAKEOFF_SPLIT.md (temporal, Δ-vs-handcrafted) + MLflow
+```
+Priority if GPU/time tight: UTICA + MantisV2 V1/V2 (UTICA loads the Mantis8M arch anyway); plain
+Mantis8M is completeness-only (MantisV2 already beat it conceptually). New FMs (UniMTS/NormWear)
+are a separate integration step — the novelty/upside play, not part of this bake-off.
