@@ -8,6 +8,10 @@
 # are all set — no more exporting things by hand. Layers my personal env on top of
 # the shared group env.sh.
 
+# 0. uv is arch-specific and $HOME is shared across x86/aarch64 nodes — on ARM (Helios GH200)
+#    prefer the aarch64 uv from its own dir so it doesn't hit the x86 uv in ~/.local/bin.
+[ "$(uname -m)" = "aarch64" ] && export PATH="$HOME/.local/bin/aarch64:$PATH"
+
 # 1. group env: PLG paths, MLflow URI, (and UV_CACHE_DIR/TMPDIR if defined there)
 source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
 

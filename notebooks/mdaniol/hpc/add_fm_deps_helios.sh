@@ -13,6 +13,7 @@ set -euo pipefail
 arch="$(uname -m)"
 [ "$arch" = "aarch64" ] || { echo "aarch64 installer; this host is $arch — use add_fm_deps.sh on x86 (Athena)" >&2; exit 1; }
 
+export PATH="$HOME/.local/bin/aarch64:$PATH"   # aarch64 uv (separate from the x86 one in $HOME)
 source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
 source "${SHL_VENV_AARCH64:-$SCRATCH/venvs/shl2026-gh200}/bin/activate"   # the aarch64 venv
 echo "installing into: ${VIRTUAL_ENV:?personal env not active} (arch=$arch)"

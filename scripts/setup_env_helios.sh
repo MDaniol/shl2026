@@ -20,6 +20,13 @@ set -euo pipefail
   echo "(For the Helios CPU lane — tier1/bake-off — use scripts/setup_env.sh on the x86 login node.)" >&2
   exit 1; }
 
+# aarch64 uv from its own dir ($HOME is shared and also holds the x86 uv at ~/.local/bin).
+export PATH="$HOME/.local/bin/aarch64:$PATH"
+command -v uv >/dev/null 2>&1 || {
+  echo "No aarch64 uv on PATH. Install it once on this ARM node:" >&2
+  echo "  mkdir -p ~/.local/bin/aarch64 && curl -LsSf https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-unknown-linux-gnu.tar.gz | tar xz -C ~/.local/bin/aarch64 --strip-components=1" >&2
+  exit 1; }
+
 # LMOD modules can pollute these and break a clean venv; clear them (mirrors setup_env.sh).
 unset PYTHONPATH PYTHONHOME PYTHONSTARTUP
 VENV="${SHL_VENV_AARCH64:-$SCRATCH/venvs/shl2026-gh200}"   # separate from the x86 venv
