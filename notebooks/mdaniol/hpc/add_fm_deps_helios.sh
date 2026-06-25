@@ -14,7 +14,9 @@ arch="$(uname -m)"
 [ "$arch" = "aarch64" ] || { echo "aarch64 installer; this host is $arch — use add_fm_deps.sh on x86 (Athena)" >&2; exit 1; }
 
 export PATH="$HOME/.local/bin/aarch64:$PATH"   # aarch64 uv (separate from the x86 one in $HOME)
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$SCRATCH/uv-cache}"
+# group env.sh (MLflow URI, caches) is on Athena group storage; absent on Helios pr3 — source if present
+ENVSH="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"; [ -f "$ENVSH" ] && source "$ENVSH"
 source "${SHL_VENV_AARCH64:-$SCRATCH/venvs/shl2026-gh200}/bin/activate"   # the aarch64 venv
 echo "installing into: ${VIRTUAL_ENV:?personal env not active} (arch=$arch)"
 python -c "import shl2026" 2>/dev/null || { echo "build env first: ./scripts/setup_env.sh" >&2; exit 1; }

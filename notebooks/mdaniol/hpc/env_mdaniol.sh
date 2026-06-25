@@ -13,7 +13,8 @@
 [ "$(uname -m)" = "aarch64" ] && export PATH="$HOME/.local/bin/aarch64:$PATH"
 
 # 1. group env: PLG paths, MLflow URI, (and UV_CACHE_DIR/TMPDIR if defined there)
-source "$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"
+ENVSH="$PLG_GROUPS_STORAGE/plggmhealth/shl2026/env.sh"   # on Athena pr2; absent on Helios pr3
+[ -f "$ENVSH" ] && source "$ENVSH" || echo "[env_mdaniol] $ENVSH absent — using defaults (MLflow URI may be unset)"
 
 # 2. MY env — overrides env.sh's shared GROUP venv. Pick by CPU arch: Helios GH200 is aarch64
 #    (Grace ARM); everything else (Athena/Ares/Helios-CPU/login) is x86_64. ARM and x86 venvs are
