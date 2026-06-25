@@ -169,6 +169,7 @@ def main() -> int:
           f"chunk={args.chunk_size} tf_batch={args.tf_batch} "
           f"tta={args.tta_k or 'off'}/{args.rotation} splits={sorted(want)} -> {tag}", flush=True)
 
+    manifest, total_win, emb_dim, t_all = [], 0, None, time.time()
     for split, loc in jobs:
         src = args.data_dir / split / f"{loc}.parquet"
         outp = outdir / f"{split}__{loc}.npy"
@@ -202,15 +203,38 @@ def main() -> int:
             else:
                 e = embed_one(acc, gyr, mag)
             if mm is None:
-                mm = open_memmap(outp, mode="w+", dtype=np.float32, shape=(n_rows, e.shape[1]))
+                emb_dim = e.shape[1]
+                mm = open_memmap(outp, mode="w+", dtype=np.float32, shape=(n_rows, emb_dim))
             mm[pos:pos + len(e)] = e
             pos += len(e)
             del acc, gyr, mag, e          # lib/X are local to embed_one() now
             gc.collect()
             print(f"    {split}/{loc} {pos}/{n_rows} ({pos/(time.time()-t0):.0f}/s)", flush=True)
         mm.flush(); del mm
+        manifest.append({"file": f"{tag}/{split}__{loc}.npy", "rows": int(n_rows), "dim": int(emb_dim or 0)})
+        total_win += n_rows
         print(f"  saved {outp.name} ({n_rows} rows, {time.time()-t0:.0f}s)", flush=True)
-    print("[embed] done", flush=True)
+
+    # MLflow: log this extraction (params + throughput + manifest) for traceability (rule §8).
+    secs = time.time() - t_all
+    import json
+    from shl2026 import track
+    mpath = outdir / "extract_manifest.json"
+    mpath.write_text(json.dumps({"tag": tag, "model": args.model, "variant": args.variant,
+                                 "rotation": args.rotation, "tta_k": args.tta_k,
+                                 "n_windows": int(total_win), "emb_dim": int(emb_dim or 0),
+                                 "files": manifest}, indent=2))
+    with track("mdaniol", run_name=f"extract_{tag}", seed=args.seed, params_path=None,
+               params={"model": args.model, "variant": args.variant, "device": args.device,
+                       "rotation": args.rotation, "tta_k": args.tta_k, "chunk": args.chunk_size,
+                       "tf_batch": args.tf_batch, "emb_dim": int(emb_dim or 0),
+                       "n_windows": int(total_win)},
+               tags={"phase": "extraction", "branch": "fm_embeddings"}) as run:
+        run.log_metrics({"n_windows": float(total_win), "seconds": secs,
+                         "windows_per_sec": total_win / max(secs, 1e-9)})
+        run.log_artifact(mpath)
+    print(f"[embed] done — {total_win} win in {secs:.0f}s "
+          f"({total_win/max(secs,1e-9):.0f}/s); MLflow logged", flush=True)
     return 0
 
 
