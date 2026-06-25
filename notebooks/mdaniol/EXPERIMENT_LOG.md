@@ -16,7 +16,7 @@ temporal+embargo split, Bag/Hips/Torso eval, per-window (test is shuffled → no
 
 | job-name | sbatch (Athena / Ares) | driver | cluster | status | output |
 |---|---|---|---|---|---|
-| `shl-tier1` | `tier1.sbatch` / `tier1_ares.sbatch` | `tier1_experiment.py` | Ares CPU | 🟡 **running** | `TIER1_RESULTS.md` |
+| `shl-tier1` | `tier1.sbatch` / `tier1_ares.sbatch` / `tier1_helios.sbatch` | `tier1_experiment.py` | Ares/Helios CPU | ✅ done — **KEEP v1** (post-hoc tapped out) | `TIER1_RESULTS.md` |
 | `shl-probe` | `probe_fusion.sbatch` / `probe_fusion_ares.sbatch` | `probe_fusion.py` | Ares CPU | ⏳ pending (stage embeds first) | `BAKEOFF_SPLIT.md` |
 | `shl-extract` | `extract_fm.sbatch` | `extract_embeddings.py` | Athena GPU | ⏳ pending (Mantis8M) | `embeddings/<fm>_<var>/` |
 | `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena GPU | 🔨 ready | `embeddings/..._tta*/` |
@@ -41,6 +41,7 @@ Done/banked earlier (results in the table below): `shl-split`, `shl-base`, `shl-
 | 7 | **VehicleExpert V4** (gated subset corrector, mag-magnitude) | **DISABLE** — all 48 configs negative | vehicle classes = 52% of test |
 | 8 | **Vibration diagnostic H1** (engine band 18–40 Hz) | **supported but modest** — Car 0.088 vs Walk 0.019; MI-class 0.44 ≫ placement 0.058 | can we hear the engine in acc? |
 | 9 | **H2 rail magnetometer** (gravity-referenced, leave-one-bout-out) | **NEGATIVE** — LOBO 0.67 ≈ majority 0.60; cue is route- not mode-specific | bottom(metro)-vs-top(train) power hypothesis |
+| 10 | **Tier-1 post-hoc** (calibration / logit-adj / MLLS prior) | **KEEP v1** — no post-hoc beats calibration on TUNE; **oracle-prior ceiling 0.8003 < v1 0.8029** → label-shift HURTS macro-F1. Run already ≈0.96 (calibrated); cap is rail. | squeeze macro-F1 via the metric-aligned decision rule |
 
 ## Banked negatives — do NOT re-chase
 Temporal smoothing (dead on shuffled test) · location-MoE · rail/magnetometer Train-Subway (H2)

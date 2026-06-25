@@ -114,11 +114,16 @@ def main() -> int:
     print(f"  {'[oracle prior]':16s} TEST={om:.4f} Run={orun:.3f}  (upper bound, not deployable)", flush=True)
 
     base = rows["cal(v1)"][1]
-    best = max((n for n in rows if n != "cal(v1)"), key=lambda n: rows[n][0])  # select on TUNE
-    keep = rows[best][1] > base + 0.001
-    print(f"\n=== TIER1 DECISION ===\n  v1 TEST={base:.4f}; best deployable (by TUNE)={best} "
+    # Honest selection: pick the winner on TUNE among ALL deployable variants (incl. v1), then
+    # read its TEST once. (Excluding v1 and adopting a challenger that only wins on TEST would be
+    # selecting on the lock set — the over-claim trap.) ADOPT only if a NON-v1 variant wins TUNE
+    # *and* beats v1 on TEST.
+    best = max(rows, key=lambda n: rows[n][0])           # select on TUNE, v1 included
+    keep = best != "cal(v1)" and rows[best][1] > base + 0.001
+    print(f"\n=== TIER1 DECISION ===\n  v1 TEST={base:.4f}; TUNE-selected variant={best} "
           f"-> TEST={rows[best][1]:.4f} (Δ{rows[best][1]-base:+.4f}) "
-          f"-> {'ADOPT' if keep else 'keep v1'}; oracle-prior ceiling TEST={om:.4f}")
+          f"-> {'ADOPT '+best if keep else 'KEEP v1'}; oracle-prior ceiling TEST={om:.4f} "
+          f"({'below v1 -> prior-shift HURTS macro-F1' if om < base else 'above v1'})")
 
     hdr = (f"# Tier-1 macro-F1 post-hoc ({args.emb}, temporal split, Bag/Hips/Torso; select=TUNE, "
            f"lock=TEST). v1={base:.4f}; best deployable **{best}** TEST {rows[best][1]:.4f} "
