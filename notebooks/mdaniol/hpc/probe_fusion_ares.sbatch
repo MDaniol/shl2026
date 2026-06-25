@@ -24,9 +24,11 @@
 set -uo pipefail
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 
-# data on shared GROUP storage (Athena scratch is not visible from Ares)
+# data on shared GROUP storage (Athena scratch is not visible from Ares/Helios)
 export FEAT_SRC="${FEAT_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/dataset_parquet_features}"
 export EMB_SRC="${EMB_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/embeddings}"
+# MLflow: same file store as the extraction (group env.sh server, if present, overrides via :-)
+export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-file://$PLG_GROUPS_STORAGE/plggmhealth/shl2026/mlruns-helios}"
 
 # the cached embedding sets to probe (one per array task). Sets not present are SKIPPED.
 EMBS=(mantisv2_V0 mantisv2_V1 mantisv2_V2 \

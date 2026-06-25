@@ -20,6 +20,7 @@ source "$PROJECT_DIR/notebooks/mdaniol/hpc/env_mdaniol.sh"   # x86 core env (num
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
 
+export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-file://$PLG_GROUPS_STORAGE/plggmhealth/shl2026/mlruns-helios}"
 DATA="${RAW_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/dataset_parquet}"
 FEAT="${FEAT_DST:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/dataset_parquet_features}"
 FE=notebooks/mdaniol/feature_extraction/extract_features.py
