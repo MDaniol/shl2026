@@ -8,18 +8,21 @@ temporal+embargo split, Bag/Hips/Torso eval, per-window (test is shuffled → no
 - **Best deployable (v1):** frozen **MOMENT-small (V1)** embeddings ⊕ 520 handcrafted features →
   LightGBM fusion → per-class calibration ≈ **0.80 macro-F1** (honest; bracket 0.725–0.803).
 - **Realistic ceiling ~80s** (smoothing is dead on a shuffled test), so 0.80 is competitive.
-- Edge to chase = **metric-aligned post-hoc (Tier 1) + rigor**, not a flashier model.
+- Tier-1 post-hoc is now **tapped out** (KEEP v1; oracle ceiling < v1). Remaining edge = the
+  **FM dimension** (honest bake-off + new motion FMs) + rigor for the paper.
 
 ## Job tracker (sbatch / driver / status)
-`squeue --me` shows the **job-name**. Athena = GPU, Ares = CPU. Helpers (not jobs):
-`env_mdaniol.sh`, `link_data.sh`, `stage_to_group.sh`, `setup_env.sh`, `add_fm_deps.sh` (Athena only).
+`squeue --me` shows the **job-name**. GPU extraction = Athena (x86 A100) **or Helios GH200 (aarch64)**;
+CPU work = Ares / Helios-CPU (x86). Helpers: `env_mdaniol.sh` (arch-aware), `link_data.sh`,
+`stage_to_group.sh`, `setup_env.sh` (x86) / `setup_env_helios.sh` (aarch64), `add_fm_deps[_helios].sh`.
 
-| job-name | sbatch (Athena / Ares) | driver | cluster | status | output |
+| job-name | sbatch | driver | cluster | status | output |
 |---|---|---|---|---|---|
-| `shl-tier1` | `tier1.sbatch` / `tier1_ares.sbatch` / `tier1_helios.sbatch` | `tier1_experiment.py` | Ares/Helios CPU | ✅ done — **KEEP v1** (post-hoc tapped out) | `TIER1_RESULTS.md` |
-| `shl-probe` | `probe_fusion.sbatch` / `probe_fusion_ares.sbatch` | `probe_fusion.py` | Ares CPU | ⏳ pending (stage embeds first) | `BAKEOFF_SPLIT.md` |
-| `shl-extract` | `extract_fm.sbatch` | `extract_embeddings.py` | Athena GPU | ⏳ pending (Mantis8M) | `embeddings/<fm>_<var>/` |
-| `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena GPU | 🔨 ready | `embeddings/..._tta*/` |
+| `shl-tier1` | `tier1.sbatch` / `_ares` / `_helios` | `tier1_experiment.py` | Ares/Helios CPU | ✅ done — **KEEP v1** (post-hoc tapped out) | `TIER1_RESULTS.md` |
+| `shl-extract-all` | `extract_all_helios.sbatch` (array) | `extract_embeddings.py` (MLflow-logged) | **Helios GH200** | 🟡 running (Athena queue dead) | `embeddings/<fm>_<var>/` + MLflow |
+| `shl-extract` | `extract_fm.sbatch` / `extract_fm_helios.sbatch` | `extract_embeddings.py` | Athena / Helios GPU | (per-model variant) | `embeddings/<fm>_<var>/` |
+| `shl-probe` | `probe_fusion.sbatch` / `_ares` | `probe_fusion.py` | Ares/Helios CPU | ⏳ next (after extraction) | `BAKEOFF_SPLIT.md` |
+| `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena/Helios GPU | 🔨 ready | `embeddings/..._tta*/` |
 | `shl-submit` | `submit.sbatch` | `submit_fusion.py` | Athena | ✅ v1 done | `AGH_predictions_v1_*.txt` |
 | `shl-vib` | `vibration_psd.sbatch` | `vibration_psd_diagnostic.py` | either | ✅ done (H1) | `VIBRATION_DIAGNOSTIC.md` |
 | `shl-vexpert` | `vehicle_expert.sbatch` | `vehicle_expert.py` | Athena | ✅ done (V4 DISABLE) | `VEHICLE_EXPERT_RESULTS.md` |
@@ -48,12 +51,11 @@ Temporal smoothing (dead on shuffled test) · location-MoE · rail/magnetometer 
 · vehicle/engine disambiguation (modest) · MantisV2/UTICA alone (< handcrafted). The Train↔Subway
 residual (Subway→Train = 38% of Subway) is likely irreducible here without a **barometer** (absent).
 
-## Built, validated, not yet run
-| experiment | what | why |
+## In progress / built, not yet concluded
+| experiment | what | status |
 |---|---|---|
-| **Tier 1 post-hoc** (`tier1_experiment.py`) | calibration / logit-adjust / **MLLS test-prior estimation** → per-class F1 thresholds | the differentiated edge; targets Run (weak from scarcity) |
-| **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | robustness to unknown test orientation |
-| **Temporal FM bake-off** (`probe_fusion.sbatch`) | all FMs under the honest split + MLflow | settle FM ranking, gate cross-FM ensembling |
+| **Temporal FM bake-off** (`extract_all_helios` → `probe_fusion_ares`) | all FMs (mantis8m/mantisv2/utica/moment) under the honest split, MLflow-logged | **extraction running on Helios GH200**; bake-off next |
+| **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the bake-off |
 
 ## Infra / correctness work
 - **MLflow traceability** mandated (track + artifact snapshot per experiment); split scheme + bare
@@ -62,41 +64,50 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 - **Submission versioning** documented (`SUBMISSIONS.md`). — provenance.
 - **Tier-1 methodology fix**: source prior = model's *implied* prior (class_weight=balanced ≠ label
   freqs). — correct label-shift.
+- **Helios GH200 (aarch64) extraction lane** stood up (Athena queue dead): hybrid-arch handling
+  (x86 login/CPU vs aarch64 GH200), `setup_env_helios.sh` (fresh aarch64 resolve, not the x86 lock),
+  aarch64 `uv` + torch 2.5.1/cu12.4 on Grace-Hopper (~1800 win/s), arch-aware `env_mdaniol.sh`,
+  optional group `env.sh`. — use GH200 when Athena is busy.
+- **extract_embeddings now MLflow-logged** (per model×variant: params + windows/sec + manifest);
+  fixed a `del lib,X` runtime bug from the TTA refactor (caught by the Helios smoke test).
 
 ## Next (prioritized)
-1. **Run Tier 1** → read `TIER1_RESULTS.md` (does MLLS/logit-adjust beat v1 + lift Run; oracle ceiling).
-2. **Tier 2** — gravity-frame canonicalization + MOMENT layer-10 / concat-pooling (one GPU re-extract).
-3. **Re-check all FMs** on the temporal split with upgraded features (add spectral centroid/entropy/
-   flatness) → definitive `BAKEOFF_SPLIT.md`.
-4. **Paper** — leakage audit (0.87→0.80) + banked negatives + calibration-as-surviving-lever
+1. ✅ **Tier 1 done** → KEEP v1 (post-hoc tapped out; oracle ceiling < v1).
+2. **FM bake-off (active)** — Helios GH200 extracts all FMs (MLflow-logged) → `probe_fusion_ares`
+   (CPU) → `BAKEOFF_SPLIT.md`. Settles MantisV2/Mantis8M/UTICA vs MOMENT on the honest split.
+3. **Tier 2** — gravity-frame canonicalization + MOMENT layer-10 / concat-pooling.
+4. **New motion FMs (UniMTS / NormWear)** — the novelty/upside play (need integration).
+5. **Paper** — leakage audit (0.87→0.80) + banked negatives + calibration-as-surviving-lever
    (HASCA rewards methodology/characterization).
 
 ## Cluster division of labor
-- **Athena (GPU):** FM embedding *extraction* only (runs the frozen FM) — `extract_fm.sbatch`,
-  `tta_embeddings.sbatch`, `variant_sweep.sbatch`.
-- **Ares (CPU):** everything that consumes *cached* embeddings — `tier1_ares.sbatch`,
-  `probe_fusion_ares.sbatch`, fusion, post-hoc. Slim venv (no torch): `setup_env.sh` + `uv pip
-  install lightgbm`. Data reaches Ares via **group storage** (Athena `$SCRATCH` is invisible to Ares).
+- **Athena (x86, GPU/A100):** FM extraction — proven, but the queue can be dead.
+- **Helios GH200 (aarch64, GPU):** FM extraction fallback/primary — `extract_all_helios.sbatch` + the
+  aarch64 env (`setup_env_helios.sh` + `add_fm_deps_helios.sh`; aarch64 `uv`). ~1800 win/s, MLflow-logged.
+- **Ares / Helios-CPU (x86, CPU):** everything on *cached* embeddings — bake-off, tier1, fusion,
+  post-hoc. `setup_env.sh` + `uv pip install lightgbm`.
+- **Storage:** group storage is per-cluster (Athena `pr2`, Helios `pr3` — separate); raw + embeddings
+  live on group storage, moved by `rsync` / `stage_to_group.sh`. `$SCRATCH` purges (Helios: 30 d).
+  Full Helios runbook: `hpc/HELIOS_SETUP.md`.
 
-## Runbook — Tier 1 (CPU, Ares) [running]
+## Runbook — FM bake-off (current: Helios GH200 + CPU) [extraction running]
+Goal: settle MantisV2 / Mantis8M / UTICA / MOMENT under temporal+embargo. Athena queue dead → Helios.
 ```
-# Ares: env = setup_env.sh + lightgbm; data staged to group storage; then:
-sbatch notebooks/mdaniol/hpc/tier1_ares.sbatch   # -> TIER1_RESULTS.md (read cal(v1) vs logit_adj/mlls; Run F1; oracle ceiling)
-```
-
-## Runbook — temporal FM bake-off (re-check ALL FMs on the honest split) [pending]
-Goal: settle MantisV2 / Mantis8M / UTICA / MOMENT under temporal+embargo with current features.
-```
-# --- on ATHENA (GPU): extract the missing FM + publish cached ones to group storage ---
+# --- Helios GH200 (aarch64): extract ALL FMs -> group storage, MLflow-logged ---
 cd ~/shl2026 && git pull
-MODEL=mantis8m VARIANTS="V0 V1 V2" sbatch notebooks/mdaniol/hpc/extract_fm.sbatch   # the only un-extracted family
-bash notebooks/mdaniol/hpc/stage_to_group.sh        # rsync features + ALL cached embeddings -> group storage
-#   (re-run stage_to_group.sh after mantis8m finishes to publish it)
+sbatch notebooks/mdaniol/hpc/extract_all_helios.sbatch   # array: 1 model/task; ~30 min wall-clock
 
-# --- on ARES (CPU): the heavy LightGBM bake-off over whatever is staged (missing FMs skip) ---
-cd ~/shl2026 && git pull
-sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch   # -> BAKEOFF_SPLIT.md (temporal, Δ-vs-handcrafted) + MLflow
+# --- Helios-CPU / Ares (x86): LightGBM bake-off over the staged embeddings ---
+./scripts/setup_env.sh && source notebooks/mdaniol/hpc/env_mdaniol.sh && uv pip install lightgbm
+export MLFLOW_TRACKING_URI="file://$PLG_GROUPS_STORAGE/plggmhealth/shl2026/mlruns-helios"
+sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch    # -> BAKEOFF_SPLIT.md (temporal, Δ-vs-handcrafted)
 ```
-Priority if GPU/time tight: UTICA + MantisV2 V1/V2 (UTICA loads the Mantis8M arch anyway); plain
-Mantis8M is completeness-only (MantisV2 already beat it conceptually). New FMs (UniMTS/NormWear)
-are a separate integration step — the novelty/upside play, not part of this bake-off.
+(Old Athena path still valid: `extract_fm.sbatch` + `stage_to_group.sh` + `probe_fusion_ares.sbatch`.)
+
+## Diary
+- **2026-06-25** — Tier-1 post-hoc ablation (Ares): **KEEP v1**, a clean negative — oracle-prior
+  ceiling 0.8003 < v1 0.8029 (label-shift hurts a class-uniform metric); Run already ≈0.96, cap is
+  the rail pair. Post-hoc lever closed (also rules out a Bayesian variant). Athena GPU queue went
+  dead → stood up the **Helios GH200 (aarch64) extraction lane**: hybrid-arch env, aarch64 `uv` +
+  torch 2.5.1/cu12.4 on Grace-Hopper (smoke ~1800 win/s), MLflow-logged extraction, group-storage
+  outputs. FM bake-off (MantisV2/Mantis8M/UTICA vs MOMENT) now extracting on Helios while Athena sleeps.
