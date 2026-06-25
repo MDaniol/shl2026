@@ -10,6 +10,25 @@ temporal+embargo split, Bag/Hips/Torso eval, per-window (test is shuffled → no
 - **Realistic ceiling ~80s** (smoothing is dead on a shuffled test), so 0.80 is competitive.
 - Edge to chase = **metric-aligned post-hoc (Tier 1) + rigor**, not a flashier model.
 
+## Job tracker (sbatch / driver / status)
+`squeue --me` shows the **job-name**. Athena = GPU, Ares = CPU. Helpers (not jobs):
+`env_mdaniol.sh`, `link_data.sh`, `stage_to_group.sh`, `setup_env.sh`, `add_fm_deps.sh` (Athena only).
+
+| job-name | sbatch (Athena / Ares) | driver | cluster | status | output |
+|---|---|---|---|---|---|
+| `shl-tier1` | `tier1.sbatch` / `tier1_ares.sbatch` | `tier1_experiment.py` | Ares CPU | 🟡 **running** | `TIER1_RESULTS.md` |
+| `shl-probe` | `probe_fusion.sbatch` / `probe_fusion_ares.sbatch` | `probe_fusion.py` | Ares CPU | ⏳ pending (stage embeds first) | `BAKEOFF_SPLIT.md` |
+| `shl-extract` | `extract_fm.sbatch` | `extract_embeddings.py` | Athena GPU | ⏳ pending (Mantis8M) | `embeddings/<fm>_<var>/` |
+| `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena GPU | 🔨 ready | `embeddings/..._tta*/` |
+| `shl-submit` | `submit.sbatch` | `submit_fusion.py` | Athena | ✅ v1 done | `AGH_predictions_v1_*.txt` |
+| `shl-vib` | `vibration_psd.sbatch` | `vibration_psd_diagnostic.py` | either | ✅ done (H1) | `VIBRATION_DIAGNOSTIC.md` |
+| `shl-vexpert` | `vehicle_expert.sbatch` | `vehicle_expert.py` | Athena | ✅ done (V4 DISABLE) | `VEHICLE_EXPERT_RESULTS.md` |
+| _Tier 2 (gravity-canon, layer/pool)_ | _not built_ | — | Athena GPU | ⏳ planned | — |
+| _new FMs (UniMTS/NormWear)_ | _not built_ | — | Athena GPU | ⏳ planned | — |
+
+Done/banked earlier (results in the table below): `shl-split`, `shl-base`, `shl-vsweep`,
+`shl-moe`, `shl-rail`, `shl-fusion`, `shl-freqmag`, `shl-embpca`, `shl-temporal`, `shl-diagnose`.
+
 ## Done — confirmed results
 | # | experiment | result | why we did it |
 |---|---|---|---|
