@@ -14,17 +14,13 @@ cd ~/shl2026 && git checkout mdaniol/shl-fm-pipeline && git pull
 ```
 
 ### 2. Build the aarch64 venv (must be built ON Helios — x86 venv won't work)
-Same `setup_env.sh` as Athena/Ares; `uv` selects aarch64 wheels automatically. Tier 1 needs no
-torch, so this is light.
+Use the Helios setup script — it resolves FRESH from pyproject for aarch64 (the shared uv.lock is
+x86, so `uv sync`/`setup_env.sh` does NOT work here). Tier 1 needs no torch, so this is light.
 ```bash
 uv --version || curl -LsSf https://astral.sh/uv/install.sh | sh   # if uv missing
-./scripts/setup_env.sh                                            # core+dev env from the lock (aarch64, NO torch)
+./scripts/setup_env_helios.sh                                    # aarch64 fresh resolve + lightgbm
 source notebooks/mdaniol/hpc/env_mdaniol.sh
-uv pip install lightgbm                                           # the one Tier-1 dep not in the lock
-python -c "from shl2026 import track, evaluate_predictions; import lightgbm; print('helios env OK')"
 ```
-If `uv sync` ever balks on aarch64, fall back to a plain venv:
-`python -m venv $SCRATCH/venvs/shl2026 && source .../activate && pip install -e . lightgbm pytest`.
 
 ### 3. Copy the data to Helios group storage (pr3)
 Helios can't see Athena's scratch. Find the Helios group path, then rsync from Athena.
@@ -64,7 +60,7 @@ committing to a full run.** Grant `plgshl26-gpu-gh200` / `plgrid-gpu-gh200` (48h
 
 ### 1. Build the aarch64 FM env (on Helios)
 ```bash
-cd ~/shl2026 && ./scripts/setup_env.sh             # core env (once)
+cd ~/shl2026 && ./scripts/setup_env_helios.sh      # aarch64 core env (fresh resolve, once)
 bash notebooks/mdaniol/hpc/add_fm_deps_helios.sh   # aarch64 torch+CUDA + FM stack
 # -> prints torch version + "FM stack imports OK on aarch64" (cuda=False on login is fine)
 ```

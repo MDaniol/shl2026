@@ -7,7 +7,7 @@
 # fall back to Athena (x86, proven) for extraction, or build an Apptainer image
 # (scripts/build_container.sh). The CPU lane (tier1/bake-off) does NOT need this script.
 #
-#   ./scripts/setup_env.sh                                 # core env from the lock (once)
+#   ./scripts/setup_env_helios.sh                          # aarch64 core env (fresh resolve, once)
 #   bash notebooks/mdaniol/hpc/add_fm_deps_helios.sh       # then add the aarch64 FM stack
 set -euo pipefail
 arch="$(uname -m)"
