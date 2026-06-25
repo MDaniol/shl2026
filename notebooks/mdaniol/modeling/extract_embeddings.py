@@ -205,7 +205,7 @@ def main() -> int:
                 mm = open_memmap(outp, mode="w+", dtype=np.float32, shape=(n_rows, e.shape[1]))
             mm[pos:pos + len(e)] = e
             pos += len(e)
-            del acc, gyr, mag, lib, X, e
+            del acc, gyr, mag, e          # lib/X are local to embed_one() now
             gc.collect()
             print(f"    {split}/{loc} {pos}/{n_rows} ({pos/(time.time()-t0):.0f}/s)", flush=True)
         mm.flush(); del mm
