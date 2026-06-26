@@ -219,7 +219,7 @@ def test_embed_per_channel_keeps_channels_separate():
 
 def test_lgbm_subsampling_is_deterministic():
     """Reproducibility: bagged LightGBM (subsample<1) is non-deterministic under
-    multithreading unless deterministic=True (+force_row_wise). Enforce: every file
+    multithreading unless deterministic=True (+force_col_wise). Enforce: every file
     using subsample= must set deterministic= at least as often (paper-grade reproducible
     numbers; this is what caused 0.8157-vs-0.8213 on the same recipe)."""
     offenders = []
@@ -231,7 +231,7 @@ def test_lgbm_subsampling_is_deterministic():
 
 
 def test_lgbm_deterministic_config_reproduces():
-    """Functional check: with deterministic=True + force_row_wise=True + fixed seed, two
+    """Functional check: with deterministic=True + force_col_wise=True + fixed seed, two
     fits on identical data give identical predictions (the config we now ship)."""
     import lightgbm as lgb
     rng = np.random.default_rng(0)
@@ -240,7 +240,7 @@ def test_lgbm_deterministic_config_reproduces():
         return lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=80,
                                   subsample=0.8, subsample_freq=1, colsample_bytree=0.8,
                                   n_jobs=-1, verbosity=-1, random_state=0,
-                                  deterministic=True, force_row_wise=True).fit(X, y).predict(X)
+                                  deterministic=True, force_col_wise=True).fit(X, y).predict(X)
     assert np.array_equal(fit(), fit()), "deterministic LGBM config not reproducible"
 
 

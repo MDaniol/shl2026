@@ -56,7 +56,7 @@ def main() -> int:
                              learning_rate=0.05, num_leaves=63, subsample=0.8, subsample_freq=1,
                              colsample_bytree=0.8, class_weight="balanced", n_jobs=-1,
                              verbosity=-1, random_state=0,
-                             deterministic=True, force_row_wise=True).fit(Xfit, yfit)
+                             deterministic=True, force_col_wise=True).fit(Xfit, yfit)
     res = evaluate_predictions(ytest, clf.predict(Xtest))
 
     print(f"\nMOMENT-fusion ({args.emb}) on temporal TEST  n={res.n}  "

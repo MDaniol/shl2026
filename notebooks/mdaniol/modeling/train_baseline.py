@@ -86,8 +86,8 @@ def main() -> int:
         n_jobs=-1,
         verbosity=-1,
         random_state=0,            # determinism (subsample<1 is stochastic)
-        deterministic=True,        # + force_row_wise -> bit-reproducible across threads
-        force_row_wise=True,
+        deterministic=True,        # + force_col_wise -> bit-reproducible across threads
+        force_col_wise=True,
     )
     print("Training LightGBM (early-stopping on val multi_logloss)…", flush=True)
     clf.fit(

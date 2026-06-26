@@ -66,7 +66,7 @@ def _lgbm(num_class=8, n_est=2000, leaves=63):
                               learning_rate=0.05, num_leaves=leaves, subsample=0.8,
                               subsample_freq=1, colsample_bytree=0.8,
                               class_weight="balanced", n_jobs=-1, verbosity=-1, random_state=0,
-                             deterministic=True, force_row_wise=True)
+                             deterministic=True, force_col_wise=True)
 
 
 def fit_probs(Xfit, yfit, Xcal, ycal, evals: dict) -> dict:

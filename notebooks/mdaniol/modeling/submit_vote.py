@@ -49,7 +49,7 @@ def fit_one_fm(emb, feat_dir, emb_root, n_estimators, ytr, yva, fit_m, tune_m):
     clf = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=n_estimators,
                              learning_rate=0.05, num_leaves=63, subsample=0.8, subsample_freq=1,
                              colsample_bytree=0.8, class_weight="balanced", n_jobs=-1,
-                             verbosity=-1, random_state=0, deterministic=True, force_row_wise=True)
+                             verbosity=-1, random_state=0, deterministic=True, force_col_wise=True)
     clf.fit(Xfit, yfit, eval_set=[(Xcal, ycal)], eval_metric="multi_logloss",
             callbacks=[early_stopping(100)])
     w = calibrate(clf.predict_proba(Xcal), clf.classes_, ycal)
