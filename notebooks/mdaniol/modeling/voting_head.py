@@ -104,12 +104,15 @@ def main() -> int:
     ytune, ytest = yva[tm], yva[sm]
     print(f"[voting] embs={embs} fit=User1+val[{fm.sum()}] tune={tm.sum()} test={sm.sum()}")
 
-    # per-FM calibrated probas (single-FM TEST macro reproduces the bake-off)
-    singles, Ptu_list, Pte_list = {}, [], []
+    # per-FM calibrated probas (single-FM TEST macro reproduces the bake-off).
+    # Also keep each FM's fitted model + calibration weights so the submission can REUSE
+    # them (submit_vote --from-models) instead of refitting — and so §8 snapshots the model.
+    singles, Ptu_list, Pte_list, fmodels = {}, [], [], []
     for e in embs:
         o = fused_probas(e, args.emb_root, args.feat_dir, ytr, yva, Ftr, Fva, fm, tm, sm)
         singles[e] = o["rep"]["macro_f1"]
         Ptu_list.append(o["proba_tune"]); Pte_list.append(o["proba_test"])
+        fmodels.append((o["model"], o["weights"]))      # (fitted LGBM, per-class cal weights)
     Ptu = np.stack(Ptu_list, 0); Pte = np.stack(Pte_list, 0)        # (K, n, 8)
     best_single = max(singles, key=singles.get)
     base = singles[best_single]
@@ -157,8 +160,14 @@ def main() -> int:
     args.out.write_text(hdr + body)
 
     from shl2026 import track
+    import joblib
     json_path = args.out.with_suffix(".json")
     save_report(json_path, {name: rep for name, _, _, rep in rows})
+    # snapshot the fitted models + the locked weighted+recal vote params (rule §8) so the
+    # submission can reuse them (no refit). Recipe = weighted+recal, which submit_vote applies.
+    model_path = args.out.with_name(f"vote_models_{'+'.join(embs)}.joblib")
+    joblib.dump({"embs": embs, "models": fmodels, "vote_weights": w, "recal": cw,
+                 "split": args.split.stem, "tune_macro": float(best_vote[1])}, model_path)
     with track("mdaniol", run_name=f"voting_{'+'.join(embs)}", seed=0, params_path=None,
                params={"embs": ",".join(embs), "split": args.split.stem,
                        "weights": ",".join(f"{x:.3f}" for x in w),
@@ -174,7 +183,8 @@ def main() -> int:
             run.log_metrics({f"test_f1_{k}": d["f1"]})
         run.log_artifact(args.out)
         run.log_artifact(json_path)
-    print(f"wrote {args.out}  ({time.time()-t0:.0f}s)")
+        run.log_artifact(model_path)                  # fitted models + vote params (§8)
+    print(f"wrote {args.out} + {model_path.name}  ({time.time()-t0:.0f}s)")
     return 0
 
 

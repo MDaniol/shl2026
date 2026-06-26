@@ -260,3 +260,33 @@ def test_head_xchannel_forward_and_se_uses_channels():
     pytest.importorskip("torch")
     import head_xchannel as hx
     hx.self_test()        # raises on any violation
+
+
+def test_vote_model_reuse_is_lossless():
+    """Model-reuse correctness: submit_vote --from-models reuses voting_head's joblib'd
+    (clf, cal_weights). A joblib round-trip must preserve aligned_proba EXACTLY, and the
+    weighted+recal vote arithmetic must be reproducible from the saved params — so the fast
+    path gives bit-identical predictions to refitting."""
+    import io, joblib
+    import lightgbm as lgb
+    from probe_fusion import aligned_proba, CLASSES
+    rng = np.random.default_rng(0)
+    cls = np.asarray(CLASSES)
+    Xte = rng.standard_normal((60, 12)).astype(np.float32)
+    Pte, saved = [], []
+    for s in (0, 1):
+        Xtr = rng.standard_normal((300, 12)); ytr = rng.integers(1, 9, 300)
+        clf = lgb.LGBMClassifier(n_estimators=20, verbosity=-1, random_state=s).fit(Xtr, ytr)
+        wcal = np.abs(rng.standard_normal(8)) + 0.5
+        # round-trip the model through joblib (what voting_head saves / submit_vote loads)
+        buf = io.BytesIO(); joblib.dump((clf, wcal), buf); buf.seek(0)
+        clf2, wcal2 = joblib.load(buf)
+        P1, P2 = aligned_proba(clf, Xte, wcal), aligned_proba(clf2, Xte, wcal2)
+        assert np.array_equal(P1, P2), "joblib round-trip changed aligned_proba"
+        Pte.append(P1); saved.append((clf2, wcal2))
+    Pte = np.stack(Pte, 0)
+    vw = np.array([0.6, 0.4]); recal = np.abs(rng.standard_normal(8)) + 0.5
+    ref = cls[(np.einsum("knc,k->nc", Pte, vw) * recal).argmax(1)]                 # fit-path vote
+    Pte_reload = np.stack([aligned_proba(c, Xte, w) for c, w in saved], 0)         # load-path vote
+    got = cls[(np.einsum("knc,k->nc", Pte_reload, vw) * recal).argmax(1)]
+    assert np.array_equal(ref, got), "reused models do not reproduce the vote prediction"

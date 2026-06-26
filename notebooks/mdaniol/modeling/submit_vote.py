@@ -67,6 +67,10 @@ def main() -> int:
     ap.add_argument("--version", default="v3")
     ap.add_argument("--team", default="AGH")
     ap.add_argument("--heldout", default="0.8342 (temporal lock; E-VOTE-01 weighted+recal)")
+    ap.add_argument("--from-models", type=Path, default=None,
+                    help="joblib bundle saved by voting_head.py (vote_models_*.joblib): REUSE the "
+                         "already-fitted models + locked vote params -> predict test WITHOUT refitting "
+                         "(minutes, not hours). Predictions are identical to the fit path (same models).")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
     from shl2026 import write_submission, track
@@ -77,28 +81,43 @@ def main() -> int:
     out = args.out or (root / "notebooks/mdaniol" /
                        f"{args.team}_predictions_{args.version}_vote.txt")
 
-    ytr = load_labels(args.feat_dir, "train")[0]
-    yva = load_labels(args.feat_dir, "validation")[0]
-    assign, _ = load_split_with_location_map(args.split, args.feat_dir)
-    assert len(assign) == len(yva), "split/validation length mismatch"
-    fit_m, tune_m = assign == FIT, assign == TUNE
-
-    # per-FM calibrated probas (TUNE for selection, test for the actual prediction)
-    Ptu_list, Pte_list, ycal = [], [], None
-    for e in embs:
-        Ptu, Pte, ycal = fit_one_fm(e, args.feat_dir, args.emb_root, args.n_estimators,
-                                    ytr, yva, fit_m, tune_m)
-        Ptu_list.append(Ptu); Pte_list.append(Pte)
-        print(f"[vote] fit {e}: TUNE n={len(ycal)}, test probas {Pte.shape}", flush=True)
-    Ptu = np.stack(Ptu_list, 0); Pte = np.stack(Pte_list, 0)        # (K, n, 8)
-
-    # weights + per-class recal selected ON TUNE (identical to voting_head's kept variant)
-    w = weight_search(Ptu, ycal, len(embs))
-    wv_tu = np.einsum("knc,k->nc", Ptu, w)
-    cw = calibrate(wv_tu, cls, ycal)
-    tune_macro = macro_f1(ycal, cls[(wv_tu * cw).argmax(1)])
-    print(f"[vote] weights={dict(zip(embs, np.round(w,3)))} TUNE macro(weighted+recal)={tune_macro:.4f}",
-          flush=True)
+    if args.from_models:
+        # FAST PATH: reuse voting_head's fitted models -> predict test, no refit.
+        import joblib
+        bundle = joblib.load(args.from_models)
+        assert bundle["embs"] == embs, f"bundle embs {bundle['embs']} != requested {embs}"
+        Pte_list = []
+        for e, (clf, w_cal) in zip(embs, bundle["models"]):
+            Xte = fuse(args.feat_dir, args.emb_root, e, "test")
+            assert len(Xte) == N_TEST, f"{e}: expected {N_TEST} test frames, got {len(Xte)}"
+            Pte_list.append(aligned_proba(clf, Xte, w_cal))
+            print(f"[vote] loaded {e} from bundle, test probas {Pte_list[-1].shape}", flush=True)
+        Pte = np.stack(Pte_list, 0)
+        w = np.asarray(bundle["vote_weights"]); cw = np.asarray(bundle["recal"])
+        tune_macro = float(bundle.get("tune_macro", float("nan")))
+        print(f"[vote] REUSED models ({args.from_models.name}); weights={dict(zip(embs, np.round(w,3)))} "
+              f"TUNE macro={tune_macro:.4f}", flush=True)
+    else:
+        # FIT PATH: train each FM, select weights+recal on TUNE (the standalone recipe).
+        ytr = load_labels(args.feat_dir, "train")[0]
+        yva = load_labels(args.feat_dir, "validation")[0]
+        assign, _ = load_split_with_location_map(args.split, args.feat_dir)
+        assert len(assign) == len(yva), "split/validation length mismatch"
+        fit_m, tune_m = assign == FIT, assign == TUNE
+        Ptu_list, Pte_list, ycal = [], [], None
+        for e in embs:
+            Ptu, Pte, ycal = fit_one_fm(e, args.feat_dir, args.emb_root, args.n_estimators,
+                                        ytr, yva, fit_m, tune_m)
+            Ptu_list.append(Ptu); Pte_list.append(Pte)
+            print(f"[vote] fit {e}: TUNE n={len(ycal)}, test probas {Pte.shape}", flush=True)
+        Ptu = np.stack(Ptu_list, 0); Pte = np.stack(Pte_list, 0)        # (K, n, 8)
+        # weights + per-class recal selected ON TUNE (identical to voting_head's kept variant)
+        w = weight_search(Ptu, ycal, len(embs))
+        wv_tu = np.einsum("knc,k->nc", Ptu, w)
+        cw = calibrate(wv_tu, cls, ycal)
+        tune_macro = macro_f1(ycal, cls[(wv_tu * cw).argmax(1)])
+        print(f"[vote] weights={dict(zip(embs, np.round(w,3)))} TUNE macro(weighted+recal)={tune_macro:.4f}",
+              flush=True)
 
     # predict the unlabelled test with the locked weights + recal
     wv_te = np.einsum("knc,k->nc", Pte, w)

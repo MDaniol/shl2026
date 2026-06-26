@@ -22,6 +22,10 @@ recipe + git SHA — see `AI_GUIDELINES.md` §8 traceability.)
 ```bash
 # BEST submission — calibrated soft-vote of the top-2 FMs (E-VOTE-01, 0.8342 lock):
 VERSION=v3 EMBS=utica_V2,mantisv2_V1 sbatch notebooks/mdaniol/hpc/submit_vote_helios.sbatch
+#   FAST PATH (no refit): if voting_head.py already ran it saved vote_models_*.joblib —
+#   reuse it (minutes, identical predictions, no hours-long fit):
+#   python notebooks/mdaniol/modeling/submit_vote.py --version v3 --embs utica_V2,mantisv2_V1 \
+#       --from-models notebooks/mdaniol/vote_models_utica_V2+mantisv2_V1.joblib
 # single-FM base (utica_V2, 0.8213 lock):
 VERSION=v2 EMB=utica_V2 sbatch notebooks/mdaniol/hpc/submit_helios.sbatch
 # (legacy Athena path: VERSION=v1 EMB=moment-small_V1 sbatch notebooks/mdaniol/hpc/submit.sbatch)

@@ -116,6 +116,13 @@ overall = vote+recal **0.8342**.
   `max prob diff 0.0`, predictions equal — both build the same histograms) and **~1.5× faster locally**
   (more on the 24-core cluster: col_wise parallelizes across our ~1k features). Zero change to any
   number; speeds up every fit (submit/probe/baseline). `test_lgbm_deterministic_config_reproduces` updated.
+- **model-reuse for submissions (2026-06-26):** `voting_head.py` now snapshots its fitted models +
+  locked vote params (`vote_models_*.joblib`, also an MLflow artifact — closes a §8 gap); `submit_vote.py
+  --from-models <bundle>` **reuses** them → predicts test in **minutes, no refit**, bit-identical to the
+  fit path (guarded by `test_vote_model_reuse_is_lossless`: joblib round-trip preserves `aligned_proba`).
+  Fit path stays default; reuse is opt-in. **Skipped hc-only caching** — all 11 probe tasks start
+  simultaneously so the cache isn't ready in time (would need a 2-step pre-compute); `force_col_wise`
+  + the 2-task re-confirm already cover the probe cost.
 
 ## Next (prioritized)
 1. ✅ **Tier 1 done** → KEEP v1 (post-hoc tapped out; oracle ceiling < v1).
