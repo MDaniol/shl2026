@@ -16,9 +16,13 @@ temporal+embargo split, Bag/Hips/Torso eval, per-window (test is shuffled → no
 - **Realistic ceiling ~80s** (smoothing is dead on a shuffled test), so ~0.82 is competitive.
 - Tier-1 post-hoc is **tapped out** (KEEP v1; oracle ceiling < v1). Remaining edge = the
   **lightweight head** (soft-voting top-2, then cross-channel) + rigor for the paper.
-- **Survey FM-hunt closed:** oneHAR (not in companion repo) and MASTER (multimodal, *no released
-  weights*, train-from-scratch → not a frozen FM) are **dropped**. Only **CrossHAR / UniMTS**
-  survive verification, kept as **gated** integration bets (not started unless the head stalls).
+- **New-FM hunt closed (verify-before-invest paid off 4×):** oneHAR (not in repo), MASTER (no
+  weights, train-from-scratch), **SensorLM** (Google — training code only, no weights, proprietary
+  Fitbit data, sensor-language not IMU embedder), **LSM** (Google — proprietary minute-level wrist
+  HR/EDA/skin-temp, no weights, wrong modality) — **all dropped**. **CrossHAR** modality-OK but
+  small/low-upside + weights unconfirmed → low priority. The bake-off settled the FM lane (~+0.025
+  ceiling); gains now come from the **head + vote**. Only **UniMTS** (public weights, packer stubbed)
+  is worth a future bet — gated behind the head.
 
 ## Job tracker (sbatch / driver / status)
 `squeue --me` shows the **job-name**. GPU extraction = Athena (x86 A100) **or Helios GH200 (aarch64)**;

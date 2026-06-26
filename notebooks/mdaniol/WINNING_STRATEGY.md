@@ -24,10 +24,21 @@ literature), reconciled against our own banked results. Confidence: [V]=verified
 - **Top-2 for the soft-vote = utica_V2 (0.8157) + mantisv2_V1 (0.8138)** — different families
   (UTICA-on-Mantis8M vs MantisV2) → genuine diversity. This realizes the **2025 winning family**
   (ensemble of frozen FMs → shallow late fusion), our most direct analogue. `voting_head.py` built.
-- **Survey FM-hunt closed (verify-before-invest paid off):** oneHAR (absent from the companion
-  repo) and MASTER (multimodal mmWave/depth/skeleton, *no released weights*, train-from-scratch →
-  fails the frozen-FM constraint on three counts) are **dropped**. Only **CrossHAR / UniMTS** (public
-  IMU-SSL weights) survive — kept **gated**: integrate only if the lightweight head stalls.
+- **New-FM hunt closed — diminishing returns; verify-before-invest paid off 4× (2026-06-26):**
+  every recent splashy HAR/wearable FM checked is **unusable** — published paper ± training code,
+  **no released frozen weights**, and the big-lab ones trained on proprietary wrist physiology:
+  - **oneHAR** — not actually in its companion repo (unverifiable). ✗
+  - **MASTER** — multimodal mmWave/depth/skeleton, no weights, train-from-scratch. ✗
+  - **SensorLM** (Google, NeurIPS'25) — repo is *training/captioning code only*, no weights, proprietary
+    59.7M-h Fitbit/Pixel data; sensor-language CLIP/CoCa, not a 100 Hz IMU window embedder. ✗
+  - **LSM** (Google, ICLR'25) — proprietary Fitbit/Pixel, **minute-level HR/EDA/skin-temp** (wrist
+    physiology at ~1/60 Hz); no public weights, doesn't even contain phone IMU. ✗
+  - **CrossHAR** (IMWUT'24) — modality-OK (acc/gyr) but a *small* model pretrained on tiny activity
+    datasets (UCI/HHAR/MotionSense/Shoaib), low upside, **weights unconfirmed**, design fine-tunes.
+    Low priority.
+  Net: the bake-off settled the FM lane (~+0.025 fusion ceiling); gains now come from the
+  **cross-channel head + the vote**, NOT FM hunting. The ONE remaining bet is **UniMTS** (recent,
+  larger, *public* weights, packer stubbed) — gated behind the head work, not run speculatively.
 
 ## Ranked next steps (merged; both agents' priorities reconciled)
 
