@@ -240,3 +240,11 @@ def test_lgbm_deterministic_config_reproduces():
                                   n_jobs=-1, verbosity=-1, random_state=0,
                                   deterministic=True, force_row_wise=True).fit(X, y).predict(X)
     assert np.array_equal(fit(), fit()), "deterministic LGBM config not reproducible"
+
+
+def test_eval_metrics_ece_and_robustness():
+    """ECE is ~0 for perfectly-calibrated probs and large for over-confident ones;
+    channel-dropout robustness is 0 for a channel-invariant predictor and largest for
+    the informative channel. Guards the paper's two differentiating eval axes."""
+    import eval_metrics as em
+    em.self_test()        # raises on any violation
