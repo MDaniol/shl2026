@@ -5,11 +5,18 @@ Concise running log. Detail lives in `WINNING_STRATEGY.md`, `VEHICLE_EXPERIMENT_
 temporal+embargo split, Bag/Hips/Torso eval, per-window (test is shuffled → no smoothing).
 
 ## Headline status
-- **Best deployable (v1):** frozen **MOMENT-small (V1)** embeddings ⊕ 520 handcrafted features →
-  LightGBM fusion → per-class calibration ≈ **0.80 macro-F1** (honest; bracket 0.725–0.803).
-- **Realistic ceiling ~80s** (smoothing is dead on a shuffled test), so 0.80 is competitive.
-- Tier-1 post-hoc is now **tapped out** (KEEP v1; oracle ceiling < v1). Remaining edge = the
-  **FM dimension** (honest bake-off + new motion FMs) + rigor for the paper.
+- **New best base (bake-off 2026-06-26):** frozen **UTICA (V2)** embeddings ⊕ 520 handcrafted →
+  LightGBM fusion + per-class calibration = **0.8157 macro-F1** (temporal lock). Beats the old v1
+  (**MOMENT-small_V1 = 0.8060**) by **+0.010** — a free upgrade from the full 11-FM bake-off.
+- **All 11 FMs add positive Δ vs handcrafted-only (0.7909)** (+0.003…+0.025); embeddings *alone*
+  lose to handcrafted → the FM value is in **fusion, not replacement** (confirms the survey's
+  reconstruction-pretraining prior). Top-2 for soft-voting = **utica_V2 + mantisv2_V1** (0.8138).
+- **Realistic ceiling ~80s** (smoothing is dead on a shuffled test), so ~0.82 is competitive.
+- Tier-1 post-hoc is **tapped out** (KEEP v1; oracle ceiling < v1). Remaining edge = the
+  **lightweight head** (soft-voting top-2, then cross-channel) + rigor for the paper.
+- **Survey FM-hunt closed:** oneHAR (not in companion repo) and MASTER (multimodal, *no released
+  weights*, train-from-scratch → not a frozen FM) are **dropped**. Only **CrossHAR / UniMTS**
+  survive verification, kept as **gated** integration bets (not started unless the head stalls).
 
 ## Job tracker (sbatch / driver / status)
 `squeue --me` shows the **job-name**. GPU extraction = Athena (x86 A100) **or Helios GH200 (aarch64)**;
@@ -19,9 +26,10 @@ CPU work = Ares / Helios-CPU (x86). Helpers: `env_mdaniol.sh` (arch-aware), `lin
 | job-name | sbatch | driver | cluster | status | output |
 |---|---|---|---|---|---|
 | `shl-tier1` | `tier1.sbatch` / `_ares` / `_helios` | `tier1_experiment.py` | Ares/Helios CPU | ✅ done — **KEEP v1** (post-hoc tapped out) | `TIER1_RESULTS.md` |
-| `shl-extract-all` | `extract_all_helios.sbatch` (array) | `extract_embeddings.py` (MLflow-logged) | **Helios GH200** | 🟡 running (Athena queue dead) | `embeddings/<fm>_<var>/` + MLflow |
+| `shl-extract-all` | `extract_all_helios.sbatch` (array) | `extract_embeddings.py` (MLflow-logged) | **Helios GH200** | ✅ done — all 11 FM sets extracted (~1800 win/s) | `embeddings/<fm>_<var>/` + MLflow |
 | `shl-extract` | `extract_fm.sbatch` / `extract_fm_helios.sbatch` | `extract_embeddings.py` | Athena / Helios GPU | (per-model variant) | `embeddings/<fm>_<var>/` |
-| `shl-probe` | `probe_fusion.sbatch` / `_ares` | `probe_fusion.py` | Ares/Helios CPU | ⏳ next (after extraction) | `BAKEOFF_SPLIT.md` |
+| `shl-probe` | `probe_fusion.sbatch` / `_ares` | `probe_fusion.py` | Helios CPU | ✅ done — **utica_V2 = 0.8157** (new best base) | `BAKEOFF_SPLIT.md` |
+| `shl-vote` | `voting_head.sbatch` | `voting_head.py` | Helios CPU | 🔨 ready — soft-vote top-2 (utica_V2+mantisv2_V1) | `VOTING_HEAD_RESULTS.md` |
 | `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena/Helios GPU | 🔨 ready | `embeddings/..._tta*/` |
 | `shl-submit` | `submit.sbatch` | `submit_fusion.py` | Athena | ✅ v1 done | `AGH_predictions_v1_*.txt` |
 | `shl-vib` | `vibration_psd.sbatch` | `vibration_psd_diagnostic.py` | either | ✅ done (H1) | `VIBRATION_DIAGNOSTIC.md` |
@@ -37,7 +45,7 @@ Done/banked earlier (results in the table below): `shl-split`, `shl-base`, `shl-
 |---|---|---|---|
 | 1 | **Baseline pipeline** (520 handcrafted + FM embeddings → LGBM fusion) | v1 ≈ 0.80 | frozen-FM transport-mode recognition |
 | 2 | **Split protocol / leakage audit** (blocked vs temporal+embargo) | blocked **inflates ~0.87** → honest **~0.80** (+0.07 gap) | avoid last year's 0.9→0.71 over-claim |
-| 3 | **FM bake-off** (MantisV2/UTICA/MOMENT × V0/V1/V2) | MantisV2 **0.70 < 0.745** handcrafted; **MOMENT-small_V1 = only FM that helps** | which FM to use |
+| 3 | **FM bake-off v2** (full 11-FM × temporal split, calibrated) | **utica_V2 = 0.8157** best (Δ+0.025 vs hc 0.7909); all 11 FMs help in fusion; emb-alone < hc | which FM to use (UTICA wins, not MOMENT) |
 | 4 | **Per-class calibration** (macro-F1 multipliers on TUNE) | **~+0.16 macro** — single biggest lever, rescues Run | macro-F1 weights all classes equally |
 | 5 | **Location Mixture-of-Experts** (Bag/Hips/Torso + router) | **≈0 gain** (negative) — routing per se is an ensemble effect | test location unknown |
 | 6 | **Rail expert** (Train/Subway, magnetometer magnitude) | **DISABLE** | disambiguate the rail pair |
@@ -48,14 +56,15 @@ Done/banked earlier (results in the table below): `shl-split`, `shl-base`, `shl-
 
 ## Banked negatives — do NOT re-chase
 Temporal smoothing (dead on shuffled test) · location-MoE · rail/magnetometer Train-Subway (H2)
-· vehicle/engine disambiguation (modest) · MantisV2/UTICA alone (< handcrafted). The Train↔Subway
+· vehicle/engine disambiguation (modest) · **FM embeddings _alone_ (< handcrafted) — but in
+_fusion_ all 11 FMs help (+0.003…+0.025); utica_V2 fusion 0.8157 is the new best, see #3**. The Train↔Subway
 residual (Subway→Train = 38% of Subway) is likely irreducible here without a **barometer** (absent).
 
 ## In progress / built, not yet concluded
 | experiment | what | status |
 |---|---|---|
-| **Temporal FM bake-off** (`extract_all_helios` → `probe_fusion_ares`) | all FMs (mantis8m/mantisv2/utica/moment) under the honest split, MLflow-logged | **extraction running on Helios GH200**; bake-off next |
-| **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the bake-off |
+| **Soft-voting head** (`voting_head.py` → `voting_head.sbatch`, job `shl-vote`) | calibrated late-fusion vote of top-2 (utica_V2+mantisv2_V1): equal / TUNE-weighted / +recal; gated KEEP iff > best single +0.001 on lock TEST. MLflow-tracked (run `voting_utica_V2+mantisv2_V1`), artifact-snapshotted, diff-tested (`test_voting_head_combiner_math`). | **registered 2026-06-26** (committed, gate green 12/12); pending submit on Helios CPU |
+| **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
 ## Infra / correctness work
 - **MLflow traceability** mandated (track + artifact snapshot per experiment); split scheme + bare
@@ -73,12 +82,15 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 
 ## Next (prioritized)
 1. ✅ **Tier 1 done** → KEEP v1 (post-hoc tapped out; oracle ceiling < v1).
-2. **FM bake-off (active)** — Helios GH200 extracts all FMs (MLflow-logged) → `probe_fusion_ares`
-   (CPU) → `BAKEOFF_SPLIT.md`. Settles MantisV2/Mantis8M/UTICA vs MOMENT on the honest split.
-3. **Tier 2** — gravity-frame canonicalization + MOMENT layer-10 / concat-pooling.
-4. **New motion FMs (UniMTS / NormWear)** — the novelty/upside play (need integration).
-5. **Paper** — leakage audit (0.87→0.80) + banked negatives + calibration-as-surviving-lever
-   (HASCA rewards methodology/characterization).
+2. ✅ **FM bake-off done** → **utica_V2 = 0.8157 new best base** (all 11 FMs help in fusion).
+3. **Soft-voting head (active)** — `voting_head.sbatch` (job `shl-vote`): calibrated vote of the
+   top-2 (utica_V2+mantisv2_V1). The safe gain + the 2025-winning-family realization. Sets the bar
+   the cross-channel head (LIGHTWEIGHT_HEAD_PLAN #5) must clear.
+4. **Lightweight head** — cross-channel SE / per-channel attention (the *novel* contribution).
+5. **Tier 2** — gravity-frame canonicalization + MOMENT layer-10 / concat-pooling.
+6. **Gated FMs (CrossHAR / UniMTS)** — only if the head stalls (oneHAR/MASTER dropped).
+7. **Paper** — leakage audit (0.87→0.80) + banked negatives + calibration-as-surviving-lever
+   + frozen-FM-ensemble framing (HASCA rewards methodology/characterization).
 
 ## Cluster division of labor
 - **Athena (x86, GPU/A100):** FM extraction — proven, but the queue can be dead.
@@ -111,3 +123,19 @@ sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch    # -> BAKEOFF_SPLIT.md (
   dead → stood up the **Helios GH200 (aarch64) extraction lane**: hybrid-arch env, aarch64 `uv` +
   torch 2.5.1/cu12.4 on Grace-Hopper (smoke ~1800 win/s), MLflow-logged extraction, group-storage
   outputs. FM bake-off (MantisV2/Mantis8M/UTICA vs MOMENT) now extracting on Helios while Athena sleeps.
+
+## Runbook — soft-voting head (job `shl-vote`, registered 2026-06-26) [pending submit]
+Goal: does a calibrated late-fusion vote of the bake-off top-2 beat the best single FM on the
+lock TEST? Registered (committed), MLflow-tracked, gated KEEP iff Δ>+0.001. CPU on Helios.
+```
+cd ~/shl2026 && git pull                                   # pull the registered job + head
+SHL-local/bin/python -m pytest tests/test_guardrails.py -q # pre-HPC gate (12/12 expected)
+sbatch --test-only notebooks/mdaniol/hpc/voting_head.sbatch
+JID=$(sbatch --parsable notebooks/mdaniol/hpc/voting_head.sbatch); echo "submitted $JID"
+# --- monitor ---
+watch -n 30 "squeue --me; echo ---; tail -n 8 notebooks/mdaniol/modeling/logs/vote_${JID}.out"
+# --- on completion: results + MLflow ---
+cat notebooks/mdaniol/VOTING_HEAD_RESULTS.md
+source notebooks/mdaniol/hpc/env_mdaniol.sh
+python -c "from shl2026 import leaderboard; print(leaderboard())" | head
+```

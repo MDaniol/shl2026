@@ -15,6 +15,20 @@ literature), reconciled against our own banked results. Confidence: [V]=verified
 - **Train↔Subway is the dominant residual error** (10% even for winners, 20-35% mid-pack) [V];
   Car↔Bus secondary and partly irreducible without GPS.
 
+## Bake-off verdict (2026-06-26, full 11-FM, temporal lock, calibrated)
+- **New best base = UTICA (V2) fusion = 0.8157** (handcrafted-only = 0.7909; old v1 MOMENT-small_V1
+  = 0.8060). UTICA — *not* MOMENT — is the strongest single FM; switch the production base to it.
+- **All 11 FMs help in fusion** (Δ +0.003…+0.025) but **emb-alone < handcrafted** → FMs are a
+  *fusion additive*, not a replacement. This is exactly the survey's prediction for reconstruction-
+  pretrained encoders → cite it as confirmed.
+- **Top-2 for the soft-vote = utica_V2 (0.8157) + mantisv2_V1 (0.8138)** — different families
+  (UTICA-on-Mantis8M vs MantisV2) → genuine diversity. This realizes the **2025 winning family**
+  (ensemble of frozen FMs → shallow late fusion), our most direct analogue. `voting_head.py` built.
+- **Survey FM-hunt closed (verify-before-invest paid off):** oneHAR (absent from the companion
+  repo) and MASTER (multimodal mmWave/depth/skeleton, *no released weights*, train-from-scratch →
+  fails the frozen-FM constraint on three counts) are **dropped**. Only **CrossHAR / UniMTS** (public
+  IMU-SSL weights) survive — kept **gated**: integrate only if the lightweight head stalls.
+
 ## Ranked next steps (merged; both agents' priorities reconciled)
 
 ### Tier 1 — CPU-only, post-hoc, highest-confidence, do first

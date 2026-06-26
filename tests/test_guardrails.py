@@ -160,3 +160,40 @@ def test_loaders_route_test_to_single_all_file():
     assert pf.split_locs("test") == ("all",)
     assert pf.split_locs("train") == pf.LOCATIONS
     assert pf.split_locs("validation") == pf.LOCATIONS
+
+
+def test_voting_head_combiner_math():
+    """Soft-voting head: equal vote == moe_combine.uniform_mix; the einsum weighted
+    vote with uniform weights == equal vote; weight_search concentrates on the FM that
+    perfectly predicts TUNE (selection-on-TUNE works); a vote of identical probas is a
+    no-op. Guards the hand-written vote/weight math against a library reference."""
+    import numpy as np
+    import voting_head as vh
+    import moe_combine as mc
+    rng = np.random.default_rng(0)
+    K, n = 2, 300
+    def norm(a): return a / a.sum(-1, keepdims=True)
+    P = np.stack([norm(rng.random((n, 8))) for _ in range(K)], 0)   # (K,n,8)
+
+    # equal vote == library uniform_mix (moe_combine stacks experts the same way)
+    assert np.allclose(P.mean(0), mc.uniform_mix(P), atol=1e-12)
+    # einsum weighted vote with uniform weights == equal vote
+    w_unif = np.ones(K) / K
+    assert np.allclose(np.einsum("knc,k->nc", P, w_unif), P.mean(0), atol=1e-12)
+    # vote of identical probas is a no-op (whatever the weights)
+    Pid = np.stack([P[0], P[0]], 0)
+    assert np.allclose(np.einsum("knc,k->nc", Pid, np.array([0.3, 0.7])), P[0], atol=1e-12)
+
+    # weight_search selects on TUNE: FM0 predicts y, FM1 is ADVERSARIAL (confident on a
+    # wrong class), so equal weights degrade and the search must concentrate on FM0.
+    y = np.asarray(vh.CLASSES)[rng.integers(0, 8, n)]
+    wrong_idx = y % 8                                               # != y-1 for every y in 1..8
+    Pgood = norm(0.99 * np.eye(8)[y - 1] + 0.01 / 8)
+    Pbad = norm(0.99 * np.eye(8)[wrong_idx] + 0.01 / 8)
+    Pmix = np.stack([Pgood, Pbad], 0)
+    score = lambda ww: vh.macro_f1(
+        y, np.asarray(vh.CLASSES)[np.einsum("knc,k->nc", Pmix, ww / ww.sum()).argmax(1)])
+    w = vh.weight_search(Pmix, y, K)
+    assert np.isclose(w.sum(), 1.0, atol=1e-9)
+    assert score(w) >= score(np.ones(K)) - 1e-9                     # never worse than equal weights
+    assert w[0] > w[1]                                              # concentrates on the good FM

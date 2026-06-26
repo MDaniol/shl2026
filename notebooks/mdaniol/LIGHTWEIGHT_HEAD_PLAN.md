@@ -23,6 +23,11 @@ probabilities from *richer* input.
 - **H-fuse:** token-level **cross-FM** fusion (lightweight cross-attention over 2 FMs' tokens) beats
   late-fusion voting.
 
+## Bake-off inputs (locked 2026-06-26)
+Best single fused FM = **utica_V2 (0.8157)**; **top-2 = utica_V2 + mantisv2_V1 (0.8138)**, distinct
+families → real diversity. These are the inputs for the cross-FM heads (#5) and the soft-vote.
+*(MASTER dropped from the candidate FM pool: multimodal, no released weights, train-from-scratch.)*
+
 ## Candidate lightweight heads (all differentiable, frozen FM — NO backbone backprop)
 1. mean-pool + tree (v1 baseline).
 2. **Attention pooling** (small learned query over patches) → linear.
@@ -30,6 +35,11 @@ probabilities from *richer* input.
 4. **Multi-stat pooling** (mean⊕max⊕std⊕GeM) → MLP.
 5. **Cross-FM token cross-attention** (top-2 FMs from the bake-off).
 6. **Handcrafted-fusion layer** (concat the head output with the 520 features → final linear/MLP).
+
+**0. Calibrated soft-vote of the top-2 (BUILT — `modeling/voting_head.py`).** The safe, no-training
+baseline for #5: per-FM fusion+calibration → equal / TUNE-weighted / +recal vote, gated KEEP iff it
+beats the best single FM on the lock TEST by >+0.001. Run it first — it sets the bar cross-attention
+(#5) must clear to justify its complexity. Job: `hpc/voting_head.sbatch`.
 
 ## Protocol (identical to the rest of the pipeline)
 Fit on User1 + val[FIT]; **select head/hparams on TUNE; read TEST once**. Per-class + macro reported;
@@ -105,3 +115,31 @@ All under: select on TUNE / lock TEST once, ≥3 seeds (attention heads are high
 the Train↔Subway off-diagonal reported, calibrate-before-average. Agent reports in session log + agent
 memory (`reference_frozen_head_pooling.md`, `reference_har_head_architectures.md`,
 `reference_imbalance_macrof1_heads.md`, `reference_cross_fm_fusion_heads.md`).
+
+---
+
+## Pre-registered runs (frozen before peeking at TEST)
+
+### E-VOTE-01 — calibrated soft-voting of the bake-off top-2 (registered 2026-06-26)
+Stage-1/2 of the 8-stage workflow, written **before** submitting; results go to
+`VOTING_HEAD_RESULTS.md` + MLflow run `voting_utica_V2+mantisv2_V1`.
+
+- **Hypothesis (H-fuse, late-fusion form):** a calibrated convex vote of the two best fused FMs
+  (utica_V2 0.8157, mantisv2_V1 0.8138 — distinct families) beats the best single FM on the lock
+  TEST, because different families make different errors (diversity, not routing — consistent with
+  synthesis #4 and the SHL-2025 winner; explains our location-router ≈0).
+- **Code / job:** `modeling/voting_head.py` → `hpc/voting_head.sbatch` (job `shl-vote`, Helios CPU).
+- **Protocol:** mirrors `probe_fusion.py --use-split` exactly — fit on User1+val[FIT], calibrate +
+  select weights on **TUNE**, read **TEST once**. Bag/Hips/Torso, per-window, macro + per-class
+  (Train/Subway called out). Each single-FM row must reproduce its `BAKEOFF_SPLIT.md` value (built-in
+  sanity check). Variants: equal vote · TUNE-weighted (coordinate-ascent simplex) · weighted+per-class-recal.
+- **Decision rule (gated, fixed in advance):** **KEEP** the vote iff the TUNE-selected variant beats
+  the best single FM on TEST by **> +0.001** macro-F1 **and** no per-class F1 regresses materially
+  (esp. Train/Subway/Run); else **DISABLE** (single utica_V2 stays the base). Selection is on TUNE only.
+- **Expected:** +0.005…+0.02 macro (synthesis #4: "+1–3 pp, lowest risk"). A flat/negative result is
+  itself publishable ("late-fusion diversity exhausted; the gain must come from richer pooling").
+- **Traceability:** registered in git (code auto-snapshotted by `track`); MLflow params (embs, split,
+  weights, best_single) + bare `macro_f1` (lock) + per-class; artifacts = `VOTING_HEAD_RESULTS.md`
+  + `.json`. Diff-test `tests/test_guardrails.py::test_voting_head_combiner_math` guards the vote math.
+- **Next gate:** the KEEP/DISABLE TEST macro becomes the **bar the cross-channel SE head (#3) must
+  clear** to justify its added complexity.
