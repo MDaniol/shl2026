@@ -248,3 +248,11 @@ def test_eval_metrics_ece_and_robustness():
     the informative channel. Guards the paper's two differentiating eval axes."""
     import eval_metrics as em
     em.self_test()        # raises on any violation
+
+
+def test_head_xchannel_forward_and_se_uses_channels():
+    """The 4 channel-pool heads output (B,8); the SE head's output actually depends on
+    channel content (it's not a glorified mean); a short train runs + yields normalized
+    probas. Guards the novel cross-channel head before any cluster run."""
+    import head_xchannel as hx
+    hx.self_test()        # raises on any violation

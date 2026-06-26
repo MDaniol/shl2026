@@ -154,3 +154,26 @@ Bus+0.05, Train+0.03; Still −0.02 only). **The bar for the cross-channel SE he
 failed → bake-off likely stale vs regenerated features; re-confirm before citing absolute numbers
 (vote Δ unaffected — all rows share data). Submission: the vote (0.8342) > single, so ship the vote
 (needs `submit_vote.py`, Phase-B), not single utica_V2.
+
+### E-HEAD-01 — cross-channel lightweight heads (registered 2026-06-26)
+Pre-registered before any cluster run; code `modeling/head_xchannel.py` (+ `hpc/head_xchannel_helios.sbatch`,
+job `shl-head`), gate green, diff-tested (`test_head_xchannel_forward_and_se_uses_channels`).
+
+- **Hypothesis (H-chan):** a head that learns to MIX the C independently-embedded channels
+  (Squeeze-Excitation over channels) recovers cross-axis coupling that channel-independent FMs
+  discard, beating the channel-mean baseline. Inputs = per-channel `(n,C,d)` `_pc` embeddings.
+- **Heads (all → [pooled ⊕ 520 handcrafted] → MLP → 8, frozen FM, no backprop):** `mean` (baseline,
+  reproduces single-FM fusion) · `concat` (COMODO) · `multistat` (mean⊕max⊕std⊕GeM, the workhorse)
+  · **`se` (novel)**. Tiny heads (SE pool ≈ C²/r params); dropout 0.3 + weight-decay 1e-4 + early-stop
+  on TUNE; **≥3 seeds**, report mean±std (attention/learned pooling is high-variance).
+- **Protocol:** fit User1+val[FIT]; calibrate + select head on **TUNE**; lock **TEST** once. Per-class
+  + macro + **ECE** + **missing-channel robustness** (`eval_metrics`). Handcrafted StandardScaler fit
+  on FIT only (leak-safe).
+- **Decision rule (frozen):** **KEEP** the cross-channel SE head iff its TEST mean − std (CI lower
+  bound) **> the mean baseline** AND no per-class regression (esp. Train/Subway/Run). To become the
+  submission it must additionally clear the **E-VOTE-01 bar 0.8342** (likely via a head-vote of two FMs).
+- **Expected:** SE > mean by +0.5–2 pp if H-chan holds (COMODO-scale); a flat result is publishable
+  ("mean-pool sufficient for frozen IMU FMs"). multistat is the low-risk fallback win.
+- **Prereq:** `extract_per_channel_helios.sbatch` (job `shl-extract-pc`) → `embeddings/<fm>_V1_pc/`.
+- **Traceability:** MLflow run `head_<emb_pc>` (bare macro_f1 = TUNE-winner lock + per-head + per-class
+  + ECE) + `HEAD_RESULTS.md` artifact; pre-reg here; commit; diary conclusion on completion.

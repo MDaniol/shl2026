@@ -33,6 +33,7 @@ CPU work = Ares / Helios-CPU (x86). Helpers: `env_mdaniol.sh` (arch-aware), `lin
 | `shl-probe` | `probe_fusion.sbatch` / `_ares` | `probe_fusion.py` | Helios CPU | ✅ done — **utica_V2 = 0.8157** (new best base) | `BAKEOFF_SPLIT.md` |
 | `shl-vote` | `voting_head.sbatch` | `voting_head.py` | Helios CPU | 🔨 ready — soft-vote top-2 (utica_V2+mantisv2_V1) | `VOTING_HEAD_RESULTS.md` |
 | `shl-extract-pc` | `extract_per_channel_helios.sbatch` (array) | `extract_embeddings.py --per-channel` | **Helios GH200** | 🔨 ready — per-channel V1 (utica+mantisv2) for the cross-channel head | `embeddings/<fm>_V1_pc/` (n,C,d) + MLflow |
+| `shl-head` | `head_xchannel_helios.sbatch` | `head_xchannel.py` (MLflow) | **Helios GH200** | 🔨 ready — E-HEAD-01 cross-channel heads (after `_pc`) | `HEAD_RESULTS.md` |
 | `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena/Helios GPU | 🔨 ready | `embeddings/..._tta*/` |
 | `shl-submit` | `submit_helios.sbatch` / `submit.sbatch` | `submit_fusion.py` (MLflow-tracked) | Helios CPU / Athena | ✅ v1 done; 🔨 v2 ready (utica_V2, 0.8213) | `AGH_predictions_v2_utica_V2-fusion.txt` |
 | `shl-submit-vote` | `submit_vote_helios.sbatch` | `submit_vote.py` (MLflow-tracked) | Helios CPU | 🔨 **v3 ready — ship the vote 0.8342** (utica_V2+mantisv2_V1) | `AGH_predictions_v3_vote.txt` |
@@ -69,7 +70,7 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 | experiment | what | status |
 |---|---|---|
 | **Per-channel extraction** (`extract_embeddings.py --per-channel`, job `shl-extract-pc`) | (n,C,d) V1 axes for utica+mantisv2 → cross-channel head input | **ready** (GH200); diff-tested |
-| **Cross-channel SE head** | the novel contribution; bar to beat = **0.8342** (the kept vote) | not built (after `_pc` extraction) |
+| **Cross-channel head E-HEAD-01** (`head_xchannel.py`, job `shl-head`) | mean/concat/multistat/**se** heads over (n,C,d)⊕520; ECE+robustness; ≥3 seeds; novel = SE channel-mixing | **BUILT + pre-registered** 2026-06-26 (diff-tested); needs `_pc` extraction first; bar 0.8342 |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
 **E-VOTE-01 CONCLUDED 2026-06-26 → KEEP** (result row #11). ⚠️ **Traceability flag + ROOT CAUSE:**
