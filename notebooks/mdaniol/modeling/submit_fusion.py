@@ -67,14 +67,18 @@ def main() -> int:
                     help="split for the FIT(train)/TUNE(calibration) protocol that matched 0.803.")
     ap.add_argument("--version", default="v1")
     ap.add_argument("--team", default="AGH")
+    ap.add_argument("--heldout", default="~0.803 (temporal; bracket 0.725-0.803)",
+                    help="held-out macro-F1 estimate for the SUBMISSIONS row + MLflow tag "
+                         "(this recipe's bake-off lock value; the real test is NOT scored here). "
+                         "e.g. utica_V2 -> '0.8157 (temporal lock)'.")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
-    from shl2026 import write_submission
+    from shl2026 import write_submission, track
 
-    cfg = f"moment-fusion({args.emb})+cal"
+    cfg = f"fusion({args.emb})+cal"
     out = args.out or (root / "notebooks/mdaniol" /
-                       f"{args.team}_predictions_{args.version}_moment-fusion.txt")
+                       f"{args.team}_predictions_{args.version}_{args.emb}-fusion.txt")
 
     # Reproduce the evaluated 0.803 recipe: fit on User-1 + validation[FIT], early-stop
     # AND per-class calibrate on validation[TUNE] (calibration is ~+0.16 macro — it
@@ -122,8 +126,22 @@ def main() -> int:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     log.write_text(log.read_text() + (
         f"| {args.version} | {ts} | {cfg} | {_git_sha()} | {out.name} "
-        f"| ~0.803 (temporal; bracket 0.725-0.803) | FIT-train + TUNE-calibrated; det |\n"))
+        f"| {args.heldout} | FIT-train + TUNE-calibrated; det |\n"))
     print(f"[submit] logged -> {log}", flush=True)
+
+    # MLflow traceability (rule §8): snapshot the submission + log as a tracked run. We log the
+    # held-out *estimate* as a tag and the predicted test class balance as metrics — NOT a bare
+    # macro_f1 (the real test is unlabelled here, so there is no fresh measurement to leaderboard).
+    with track("mdaniol", run_name=f"submit_{args.version}_{args.emb}", seed=0, params_path=None,
+               params={"emb": args.emb, "version": args.version, "split": args.split.stem,
+                       "team": args.team, "git_sha": _git_sha(),
+                       "protocol": "PhaseB: fit(User1+val[FIT]) -> cal(val[TUNE]) -> predict test"},
+               tags={"phase": "submission", "branch": "submit", "heldout_estimate": args.heldout}) as run:
+        run.log_metrics({f"test_pred_frac_{CLASS_NAMES[c - 1]}": float(n / len(pred))
+                         for c, n in zip(uniq, cnt)})
+        run.log_artifact(out)            # the validated 92726x500 submission matrix
+        run.log_artifact(log)            # SUBMISSIONS.md provenance row
+    print(f"[submit] MLflow tracked (run submit_{args.version}_{args.emb}); artifacts snapshotted", flush=True)
     return 0
 
 

@@ -197,3 +197,19 @@ def test_voting_head_combiner_math():
     assert np.isclose(w.sum(), 1.0, atol=1e-9)
     assert score(w) >= score(np.ones(K)) - 1e-9                     # never worse than equal weights
     assert w[0] > w[1]                                              # concentrates on the good FM
+
+
+def test_embed_per_channel_keeps_channels_separate():
+    """Per-channel extraction stacks each channel's embedding -> (n, C, d), and the mean
+    over channels reproduces a channel-pooled embedding (the property that makes per-channel
+    a strict generalization for channel-independent FMs). Uses an identity embed_fn so the
+    result must equal the input exactly."""
+    import numpy as np
+    import extract_embeddings as ee
+    n, C, T = 5, 9, 32
+    X = np.random.default_rng(0).standard_normal((n, C, T)).astype(np.float32)
+    ident = lambda x: x[:, 0, :]                       # (n,1,T) -> (n,T): identity per channel
+    out = ee.embed_per_channel(X, ident)
+    assert out.shape == (n, C, T)
+    assert np.allclose(out, X, atol=1e-6)             # channel c -> X[:, c]
+    assert np.allclose(out.mean(1), X.mean(1), atol=1e-6)  # mean over C == pooled

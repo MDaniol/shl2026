@@ -66,6 +66,19 @@ def rotate_sensors(acc, gyr, mag, mode, max_tilt_deg, rng):
     return aug._apply_R(M, acc), aug._apply_R(M, gyr), aug._apply_R(M, mag)
 
 
+def embed_per_channel(X, embed_fn):
+    """Embed each channel independently and stack -> (n, C, d).
+
+    Mantis/MOMENT are channel-independent: feeding ONE channel as a univariate series
+    yields that channel's embedding, and the mean over channels reproduces the pooled
+    embedding the default path returns (so this is a strict generalization). Keeping the
+    channels SEPARATE is the input the cross-channel head needs — it recovers cross-axis
+    coupling a channel-independent FM provably discards (LIGHTWEIGHT_HEAD_PLAN H-chan).
+    embed_fn: (n,1,T) -> (n, d)."""
+    chans = [embed_fn(X[:, c:c + 1, :]) for c in range(X.shape[1])]
+    return np.stack(chans, axis=1).astype(np.float32)            # (n, C, d)
+
+
 def build_embedder(model: str, device: str, tf_batch: int):
     if model in ("mantisv2", "mantis8m", "utica"):
         from mantis.trainer import MantisTrainer
@@ -136,6 +149,11 @@ def main() -> int:
                     help="if >0 with --rotation, write the MEAN embedding over K rotated copies "
                          "(rotation-marginalized representation). Output dir gets a _tta tag so "
                          "originals are not clobbered; the existing probe/submit consume it via --emb.")
+    ap.add_argument("--per-channel", action="store_true",
+                    help="keep channels SEPARATE: embed each channel as univariate -> (n, C, d) "
+                         "instead of the pooled/flattened (n, d). Output dir gets a _pc tag. This "
+                         "is the input for the cross-channel head (LIGHTWEIGHT_HEAD_PLAN H-chan); "
+                         "use with an axis variant (V1), not magnitudes (V2).")
     ap.add_argument("--max-tilt-deg", type=float, default=30.0, help="gravity_aware tilt bound")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--splits", default="train,validation,test",
@@ -158,18 +176,22 @@ def main() -> int:
 
     if args.tta_k and args.rotation == "none":
         ap.error("--tta-k requires --rotation so3|gravity_aware")
+    if args.per_channel and args.tta_k:
+        ap.error("--per-channel and --tta-k are mutually exclusive (combine later if needed)")
     embed, packer = build_embedder(args.model, args.device, args.tf_batch)
-    tag = f"{args.model}_{args.variant}" + (f"_tta{args.tta_k}{args.rotation}" if args.tta_k else "")
+    tag = (f"{args.model}_{args.variant}"
+           + ("_pc" if args.per_channel else "")
+           + (f"_tta{args.tta_k}{args.rotation}" if args.tta_k else ""))
     outdir = args.emb_dir / tag
     outdir.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(args.seed)
     want = set(args.splits.split(","))
     jobs = [(s, l) for s, l in JOBS if s in want]
     print(f"[embed] model={args.model} variant={args.variant} device={args.device} "
-          f"chunk={args.chunk_size} tf_batch={args.tf_batch} "
+          f"chunk={args.chunk_size} tf_batch={args.tf_batch} per_channel={args.per_channel} "
           f"tta={args.tta_k or 'off'}/{args.rotation} splits={sorted(want)} -> {tag}", flush=True)
 
-    manifest, total_win, emb_dim, t_all = [], 0, None, time.time()
+    manifest, total_win, emb_dim, n_chan, t_all = [], 0, None, None, time.time()
     for split, loc in jobs:
         src = args.data_dir / split / f"{loc}.parquet"
         outp = outdir / f"{split}__{loc}.npy"
@@ -191,7 +213,7 @@ def main() -> int:
                 lib = raw_lib(a, g, m) if args.variant == "V0" \
                     else fi.build_channel_library(a, g, m)
                 X, _ = packer(lib, args.variant)
-                return embed(X)
+                return embed_per_channel(X, embed) if args.per_channel else embed(X)
 
             if args.tta_k:                       # mean embedding over K random reorientations
                 stack = None
@@ -203,15 +225,21 @@ def main() -> int:
             else:
                 e = embed_one(acc, gyr, mag)
             if mm is None:
-                emb_dim = e.shape[1]
-                mm = open_memmap(outp, mode="w+", dtype=np.float32, shape=(n_rows, emb_dim))
+                if args.per_channel:                         # e: (len, C, d) -> file (n, C, d)
+                    n_chan, emb_dim = e.shape[1], e.shape[2]
+                    mm = open_memmap(outp, mode="w+", dtype=np.float32,
+                                     shape=(n_rows, n_chan, emb_dim))
+                else:
+                    emb_dim = e.shape[1]
+                    mm = open_memmap(outp, mode="w+", dtype=np.float32, shape=(n_rows, emb_dim))
             mm[pos:pos + len(e)] = e
             pos += len(e)
             del acc, gyr, mag, e          # lib/X are local to embed_one() now
             gc.collect()
             print(f"    {split}/{loc} {pos}/{n_rows} ({pos/(time.time()-t0):.0f}/s)", flush=True)
         mm.flush(); del mm
-        manifest.append({"file": f"{tag}/{split}__{loc}.npy", "rows": int(n_rows), "dim": int(emb_dim or 0)})
+        manifest.append({"file": f"{tag}/{split}__{loc}.npy", "rows": int(n_rows),
+                         "dim": int(emb_dim or 0), "n_chan": int(n_chan or 0)})
         total_win += n_rows
         print(f"  saved {outp.name} ({n_rows} rows, {time.time()-t0:.0f}s)", flush=True)
 
@@ -221,11 +249,13 @@ def main() -> int:
     from shl2026 import track
     mpath = outdir / "extract_manifest.json"
     mpath.write_text(json.dumps({"tag": tag, "model": args.model, "variant": args.variant,
+                                 "per_channel": bool(args.per_channel), "n_chan": int(n_chan or 0),
                                  "rotation": args.rotation, "tta_k": args.tta_k,
                                  "n_windows": int(total_win), "emb_dim": int(emb_dim or 0),
                                  "files": manifest}, indent=2))
     with track("mdaniol", run_name=f"extract_{tag}", seed=args.seed, params_path=None,
                params={"model": args.model, "variant": args.variant, "device": args.device,
+                       "per_channel": int(args.per_channel), "n_chan": int(n_chan or 0),
                        "rotation": args.rotation, "tta_k": args.tta_k, "chunk": args.chunk_size,
                        "tf_batch": args.tf_batch, "emb_dim": int(emb_dim or 0),
                        "n_windows": int(total_win)},

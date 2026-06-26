@@ -9,7 +9,7 @@ header documents what the version label means and when to bump it.
 A submission **version** is a *provenance label only* — it does **not** change the model,
 features, recipe, or score. It controls exactly two things:
 
-1. the output filename → `AGH_predictions_<VERSION>_moment-fusion.txt`
+1. the output filename → `AGH_predictions_<VERSION>_<EMB>-fusion.txt` (e.g. `..._v2_utica_V2-fusion.txt`)
 2. the row appended to the table below.
 
 A submission is **fully identified** by four fields, not the version alone:
@@ -20,9 +20,13 @@ recipe + git SHA — see `AI_GUIDELINES.md` §8 traceability.)
 
 ### How to run
 ```bash
-VERSION=v1 EMB=moment-small_V1 sbatch notebooks/mdaniol/hpc/submit.sbatch
+# current best base (Helios CPU; Athena queue dead, utica_V2 embeddings live on Helios pr3):
+VERSION=v2 EMB=utica_V2 sbatch notebooks/mdaniol/hpc/submit_helios.sbatch
+# (legacy Athena path: VERSION=v1 EMB=moment-small_V1 sbatch notebooks/mdaniol/hpc/submit.sbatch)
 ```
-`VERSION` defaults to `v1` and `EMB` to `moment-small_V1` if omitted.
+`submit_helios.sbatch` defaults to `VERSION=v2`, `EMB=utica_V2`, `HELDOUT="0.8157 (temporal lock…)"`.
+Pass `HELDOUT=…` to record the right bake-off lock estimate when you change `EMB`. Every build now
+also logs an MLflow run (`submit_<version>_<emb>`) + snapshots the .txt and SUBMISSIONS.md (rule §8).
 
 ### When to bump the version
 - **Bump** (`v1 → v2 → …`) for every *distinct submission you want to keep side by side* —

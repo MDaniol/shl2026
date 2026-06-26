@@ -102,7 +102,10 @@ soft-F1 surrogates · temporal-attention heads (target the easy cadence classes)
 frequency-imbalance losses · kitchen-sink ensembling.
 
 ## Ranked build order (lowest-regret first)
-1. **Enable token + per-channel extraction** (`extract_embeddings.py --per-channel` / `--tokens`). [GPU, prereq]
+1. ✅ **Per-channel extraction BUILT** (`extract_embeddings.py --per-channel` → `(n,C,d)`, `_pc` tag;
+   job `extract_per_channel_helios.sbatch`, utica+mantisv2 V1; diff-tested). Mantis/MOMENT are
+   channel-independent so per-channel embed = pre-pool rep, mean-over-C reproduces the pooled vector.
+   *(Token-level `--tokens` still TODO; per-channel is the load-bearing one for the cross-channel head.)*
 2. **Multi-stat pooling (mean⊕max⊕std⊕GeM) + per-channel concat → LGBM**, plus a **k-NN/NCM geometry
    audit** (the ceiling). Cheap, reliable, tree-compatible. [CPU]
 3. **Cross-channel SE head** (the novel paper contribution); channel-attention as the upgrade — small
