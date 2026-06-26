@@ -42,7 +42,7 @@ def fit_lgb(Xtr, ytr, Xtu, ytu, n_est=3000):
     clf = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=n_est,
                              learning_rate=0.05, num_leaves=63, subsample=0.8, subsample_freq=1,
                              colsample_bytree=0.8, class_weight="balanced", n_jobs=-1, verbosity=-1,
-                             random_state=0)
+                             random_state=0, deterministic=True, force_row_wise=True)
     clf.fit(Xtr, ytr, eval_set=[(Xtu, ytu)], eval_metric="multi_logloss",
             callbacks=[early_stopping(150)])
     return clf
@@ -139,7 +139,7 @@ def main() -> int:
     final = lgb.LGBMClassifier(objective="multiclass", num_class=8, n_estimators=best_it,
                                learning_rate=0.05, num_leaves=63, subsample=0.8, subsample_freq=1,
                                colsample_bytree=0.8, class_weight="balanced", n_jobs=-1, verbosity=-1,
-                               random_state=0)
+                               random_state=0, deterministic=True, force_row_wise=True)
     final.fit(Xfin, yfin)
     test = pd.read_parquet(args.feat_dir / "test" / "all.parquet")
     pred = final.classes_[(final.predict_proba(test[feat].to_numpy(np.float32)) * w).argmax(1)].astype(int)

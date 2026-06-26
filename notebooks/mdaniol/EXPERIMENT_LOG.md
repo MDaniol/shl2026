@@ -71,11 +71,16 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 | **Cross-channel SE head** | the novel contribution; bar to beat = **0.8342** (the kept vote) | not built (after `_pc` extraction) |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
-**E-VOTE-01 CONCLUDED 2026-06-26 → KEEP** (result row #11). ⚠️ **Traceability flag:** single utica_V2 in
-the vote run = 0.8213 but `BAKEOFF_SPLIT.md` said 0.8157 (+0.0056, same recipe) — the pre-registered
-"single reproduces bake-off" check FAILED. Vote verdict unaffected (all rows share data), but the
-bake-off table is likely **stale vs regenerated features** → re-confirm the bake-off (≥utica_V2,
-mantisv2_V1) before citing absolute numbers. New best overall = vote+recal **0.8342**.
+**E-VOTE-01 CONCLUDED 2026-06-26 → KEEP** (result row #11). ⚠️ **Traceability flag + ROOT CAUSE:**
+single utica_V2 in the vote run = 0.8213 but `BAKEOFF_SPLIT.md` said 0.8157 (+0.0056, same recipe) —
+the pre-registered "single reproduces bake-off" check FAILED. **Not stale features** (feature/FM-input
+code unchanged since 5d77713, 2026-06-20 → regen is identical). **Cause: LightGBM multithread
+non-determinism** (our configs used `subsample`/`colsample` + `n_jobs=-1`, no `deterministic=True` →
+~±0.005 run-to-run). **FIXED:** added `deterministic=True, force_row_wise=True` to all 6 LGBM configs
+(probe_fusion, submit_fusion, train_split, train_baseline, moe_experiment, diagnose_perclass) +
+guardrail `test_lgbm_subsampling_is_deterministic`. Re-run the bake-off (utica_V2, mantisv2_V1) WITH
+the deterministic config to lock canonical numbers. Vote Δ unaffected (all rows shared data). New best
+overall = vote+recal **0.8342**.
 
 ## Infra / correctness work
 - **MLflow traceability** mandated (track + artifact snapshot per experiment); split scheme + bare
