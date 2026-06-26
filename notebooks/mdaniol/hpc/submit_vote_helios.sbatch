@@ -9,7 +9,7 @@
 #SBATCH --job-name=shl-submit-vote
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=64G
-#SBATCH --time=02:00:00
+#SBATCH --time=06:00:00
 #SBATCH --output=notebooks/mdaniol/modeling/logs/submitvote_%j.out
 #SBATCH --partition=plgrid
 #SBATCH --account=plgshl26-cpu

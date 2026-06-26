@@ -10,7 +10,7 @@
 #SBATCH --job-name=shl-submit
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=64G
-#SBATCH --time=01:30:00
+#SBATCH --time=03:30:00
 #SBATCH --output=notebooks/mdaniol/modeling/logs/submit_%j.out
 #SBATCH --partition=plgrid
 #SBATCH --account=plgshl26-cpu

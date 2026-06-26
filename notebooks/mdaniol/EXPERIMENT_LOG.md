@@ -109,6 +109,12 @@ overall = vote+recal **0.8342**.
   `$SCRATCH` (purges / empty) → submit jobs linked an empty `embeddings/` → false "test__all.npy
   missing" (the file IS on group storage). Fixed defaults → **group storage** (single source of truth)
   + submit/head sbatch now export `RAW_SRC/FEAT_SRC/EMB_SRC` explicitly (mirrors the bake-off job).
+- **determinism cost / wall-time (2026-06-26):** `deterministic=True, force_row_wise=True` makes the
+  LightGBM fits **~3–4× slower** (non-det `shl-vote` = 2 fits <45 min; det `submit_vote` timed out at
+  2 h). Reproducibility kept; bumped submit_vote `--time`→6 h, submit→3.5 h, and trim the bake-off
+  re-confirm to the 2 needed tasks. **Number-neutral speedup available:** `force_col_wise` builds the
+  *same* histograms (identical model, still deterministic) and may parallelize better on our ~1k-feature
+  matrix across 24 cores — benchmark before switching globally.
 
 ## Next (prioritized)
 1. ✅ **Tier 1 done** → KEEP v1 (post-hoc tapped out; oracle ceiling < v1).
