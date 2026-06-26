@@ -16,7 +16,7 @@
 #SBATCH --array=0-10
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=64G
-#SBATCH --time=05:00:00         # fusion head (lgbm on emb⊕520, ~800k rows) is heavy
+#SBATCH --time=12:00:00         # fusion head (lgbm on emb⊕520, ~800k rows) — heavy + deterministic (~3-4x)
 #SBATCH --output=notebooks/mdaniol/modeling/logs/probe_ares_%A_%a.out
 #SBATCH --partition=plgrid                 # Ares CPU partition (no GPU); adjust if needed
 #SBATCH --account=plgshl26-cpu             # CPU grant; CONFIRM your Ares account name
