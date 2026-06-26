@@ -101,6 +101,10 @@ overall = vote+recal **0.8342**.
   **x86 CPU venv has no torch** (it lives only in the aarch64 GH200 venv) → the gate failed and
   aborted `submit_vote`/`submit` on CPU. Fixed with `pytest.importorskip("torch")` so those tests
   **skip on CPU, run fully on GH200**. (CPU venv = `$SCRATCH/venvs/shl2026`; aarch64 = `…-gh200`.)
+- **link_data storage-path fix (2026-06-26):** `link_data.sh` defaulted `EMB_SRC`/`FEAT_SRC` to
+  `$SCRATCH` (purges / empty) → submit jobs linked an empty `embeddings/` → false "test__all.npy
+  missing" (the file IS on group storage). Fixed defaults → **group storage** (single source of truth)
+  + submit/head sbatch now export `RAW_SRC/FEAT_SRC/EMB_SRC` explicitly (mirrors the bake-off job).
 
 ## Next (prioritized)
 1. ✅ **Tier 1 done** → KEEP v1 (post-hoc tapped out; oracle ceiling < v1).

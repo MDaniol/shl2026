@@ -22,6 +22,10 @@ set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 source "$PROJECT_DIR/notebooks/mdaniol/hpc/env_mdaniol.sh"   # aarch64 venv (has torch)
 cd "$PROJECT_DIR"
+# stage from GROUP storage (persistent); $SCRATCH purges -> link_data must NOT default to it
+export RAW_SRC="${RAW_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/dataset_parquet}"
+export FEAT_SRC="${FEAT_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/dataset_parquet_features}"
+export EMB_SRC="${EMB_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/embeddings}"
 mkdir -p notebooks/mdaniol/modeling/logs
 M=notebooks/mdaniol/modeling
 FEAT="$PROJECT_DIR/dataset_parquet_features"

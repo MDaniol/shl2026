@@ -5,18 +5,21 @@
 #
 #   bash notebooks/mdaniol/hpc/link_data.sh [PROJECT_DIR]
 #
-# Canonical sources (override via env if your layout differs):
-#   RAW_SRC  = $PLG_GROUPS_STORAGE/plggmhealth/dataset_parquet   (read-only raw)
-#   FEAT_SRC = $SCRATCH/shl2026/dataset_parquet_features         (your features)
-#   EMB_SRC  = $SCRATCH/shl2026/embeddings                       (your embeddings)
+# Canonical sources (override via env if your layout differs). Defaults point at GROUP
+# storage — features/embeddings are persistent there (Helios pr3); $SCRATCH auto-purges
+# (30 d) and is NOT where the staged data lives, so $SCRATCH defaults caused submit jobs
+# to link an empty dir ("test__all.npy missing"). Group is the single source of truth.
+#   RAW_SRC  = $PLG_GROUPS_STORAGE/plggmhealth/dataset_parquet                 (read-only raw)
+#   FEAT_SRC = $PLG_GROUPS_STORAGE/plggmhealth/shl2026/dataset_parquet_features (features)
+#   EMB_SRC  = $PLG_GROUPS_STORAGE/plggmhealth/shl2026/embeddings              (embeddings)
 set -euo pipefail
 
 ROOT="${1:-${SLURM_SUBMIT_DIR:-$PWD}}"
 : "${PLG_GROUPS_STORAGE:?must be on the cluster}"
 : "${SCRATCH:?must be set by the cluster at login}"
 RAW_SRC="${RAW_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/dataset_parquet}"
-FEAT_SRC="${FEAT_SRC:-$SCRATCH/shl2026/dataset_parquet_features}"
-EMB_SRC="${EMB_SRC:-$SCRATCH/shl2026/embeddings}"
+FEAT_SRC="${FEAT_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/dataset_parquet_features}"
+EMB_SRC="${EMB_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/embeddings}"
 
 mkdir -p "$FEAT_SRC" "$EMB_SRC"   # outputs live on $SCRATCH; raw is read-only
 
