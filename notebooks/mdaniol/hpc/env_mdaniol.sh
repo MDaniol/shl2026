@@ -31,6 +31,10 @@ export UV_CACHE_DIR="${UV_CACHE_DIR:-$SCRATCH/uv-cache}"
 export TMPDIR="${TMPDIR:-$SCRATCH/tmp}"
 export HF_HUB_DISABLE_PROGRESS_BARS=1
 export TOKENIZERS_PARALLELISM=false
+# newer MLflow rejects the file:// tracking backend by default ("maintenance mode") -> runs
+# silently went untracked. We intentionally use a file store on group storage (no DB server),
+# so opt back in. Restores §8 MLflow logging for every job that sources this.
+export MLFLOW_ALLOW_FILE_STORE=true
 mkdir -p "$HF_HOME" "$UV_CACHE_DIR" "$TMPDIR"
 
 # 4. repo root = where I submitted from (batch) or current dir (interactive)

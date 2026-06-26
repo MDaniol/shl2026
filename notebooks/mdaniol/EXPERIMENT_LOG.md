@@ -123,6 +123,15 @@ overall = vote+recal **0.8342**.
   Fit path stays default; reuse is opt-in. **Skipped hc-only caching** — all 11 probe tasks start
   simultaneously so the cache isn't ready in time (would need a 2-step pre-compute); `force_col_wise`
   + the 2-task re-confirm already cover the probe cost.
+- **MLflow file-store maintenance-mode (2026-06-27):** newer MLflow refuses the `file://` backend by
+  default → recent runs (incl. submission v3) logged "MLflow unavailable; continuing without tracking"
+  → **silently untracked** (a §8 gap). Fixed: `export MLFLOW_ALLOW_FILE_STORE=true` in `env_mdaniol.sh`
+  (we deliberately use a group-storage file store, no DB server). Re-runs now log again.
+- **Bake-off table NOT clean-deterministic yet (2026-06-27):** the deterministic re-run left a MIXED
+  table — `utica_V2` shows a *third* value 0.8229 (vs 0.8157 orig, 0.8213 vote-run), and the array
+  never finished 5 tasks (mantisv2_V1, mantis8m_V0/V1, utica_V0/V1). Ranking robust (utica_V2 top,
+  mantisv2_V1 2nd) so the DECISION + shipped vote are unaffected, but **don't cite this table** — needs
+  one clean full 12 h run (with MLflow now fixed) to be a paper artifact.
 
 ## Next (prioritized)
 1. ✅ **Tier 1 done** → KEEP v1 (post-hoc tapped out; oracle ceiling < v1).
