@@ -20,7 +20,9 @@ recipe + git SHA — see `AI_GUIDELINES.md` §8 traceability.)
 
 ### How to run
 ```bash
-# current best base (Helios CPU; Athena queue dead, utica_V2 embeddings live on Helios pr3):
+# BEST submission — calibrated soft-vote of the top-2 FMs (E-VOTE-01, 0.8342 lock):
+VERSION=v3 EMBS=utica_V2,mantisv2_V1 sbatch notebooks/mdaniol/hpc/submit_vote_helios.sbatch
+# single-FM base (utica_V2, 0.8213 lock):
 VERSION=v2 EMB=utica_V2 sbatch notebooks/mdaniol/hpc/submit_helios.sbatch
 # (legacy Athena path: VERSION=v1 EMB=moment-small_V1 sbatch notebooks/mdaniol/hpc/submit.sbatch)
 ```

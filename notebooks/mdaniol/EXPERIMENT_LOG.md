@@ -34,7 +34,8 @@ CPU work = Ares / Helios-CPU (x86). Helpers: `env_mdaniol.sh` (arch-aware), `lin
 | `shl-vote` | `voting_head.sbatch` | `voting_head.py` | Helios CPU | 🔨 ready — soft-vote top-2 (utica_V2+mantisv2_V1) | `VOTING_HEAD_RESULTS.md` |
 | `shl-extract-pc` | `extract_per_channel_helios.sbatch` (array) | `extract_embeddings.py --per-channel` | **Helios GH200** | 🔨 ready — per-channel V1 (utica+mantisv2) for the cross-channel head | `embeddings/<fm>_V1_pc/` (n,C,d) + MLflow |
 | `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena/Helios GPU | 🔨 ready | `embeddings/..._tta*/` |
-| `shl-submit` | `submit_helios.sbatch` / `submit.sbatch` | `submit_fusion.py` (now MLflow-tracked) | Helios CPU / Athena | ✅ v1 done; 🔨 **v2 ready (utica_V2, 0.8157)** | `AGH_predictions_v2_utica_V2-fusion.txt` |
+| `shl-submit` | `submit_helios.sbatch` / `submit.sbatch` | `submit_fusion.py` (MLflow-tracked) | Helios CPU / Athena | ✅ v1 done; 🔨 v2 ready (utica_V2, 0.8213) | `AGH_predictions_v2_utica_V2-fusion.txt` |
+| `shl-submit-vote` | `submit_vote_helios.sbatch` | `submit_vote.py` (MLflow-tracked) | Helios CPU | 🔨 **v3 ready — ship the vote 0.8342** (utica_V2+mantisv2_V1) | `AGH_predictions_v3_vote.txt` |
 | `shl-vib` | `vibration_psd.sbatch` | `vibration_psd_diagnostic.py` | either | ✅ done (H1) | `VIBRATION_DIAGNOSTIC.md` |
 | `shl-vexpert` | `vehicle_expert.sbatch` | `vehicle_expert.py` | Athena | ✅ done (V4 DISABLE) | `VEHICLE_EXPERT_RESULTS.md` |
 | _Tier 2 (gravity-canon, layer/pool)_ | _not built_ | — | Athena GPU | ⏳ planned | — |
