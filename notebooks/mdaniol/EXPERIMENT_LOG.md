@@ -5,9 +5,11 @@ Concise running log. Detail lives in `WINNING_STRATEGY.md`, `VEHICLE_EXPERIMENT_
 temporal+embargo split, Bag/Hips/Torso eval, per-window (test is shuffled → no smoothing).
 
 ## Headline status
-- **New best base (bake-off 2026-06-26):** frozen **UTICA (V2)** embeddings ⊕ 520 handcrafted →
-  LightGBM fusion + per-class calibration = **0.8157 macro-F1** (temporal lock). Beats the old v1
-  (**MOMENT-small_V1 = 0.8060**) by **+0.010** — a free upgrade from the full 11-FM bake-off.
+- **New best overall (E-VOTE-01, 2026-06-26): calibrated soft-vote of utica_V2 + mantisv2_V1
+  (weighted+recal) = 0.8342 macro-F1** (temporal lock; **+0.013** over best single). KEPT.
+- **Best single base:** frozen **UTICA (V2)** ⊕ 520 handcrafted → LightGBM + calibration =
+  **0.8213** (current features; bake-off table said 0.8157 — ⚠️ re-confirm, features regenerated).
+  Beats old v1 (MOMENT-small_V1 ≈ 0.806). UTICA, not MOMENT, is the strongest single FM.
 - **All 11 FMs add positive Δ vs handcrafted-only (0.7909)** (+0.003…+0.025); embeddings *alone*
   lose to handcrafted → the FM value is in **fusion, not replacement** (confirms the survey's
   reconstruction-pretraining prior). Top-2 for soft-voting = **utica_V2 + mantisv2_V1** (0.8138).
@@ -54,6 +56,7 @@ Done/banked earlier (results in the table below): `shl-split`, `shl-base`, `shl-
 | 8 | **Vibration diagnostic H1** (engine band 18–40 Hz) | **supported but modest** — Car 0.088 vs Walk 0.019; MI-class 0.44 ≫ placement 0.058 | can we hear the engine in acc? |
 | 9 | **H2 rail magnetometer** (gravity-referenced, leave-one-bout-out) | **NEGATIVE** — LOBO 0.67 ≈ majority 0.60; cue is route- not mode-specific | bottom(metro)-vs-top(train) power hypothesis |
 | 10 | **Tier-1 post-hoc** (calibration / logit-adj / MLLS prior) | **KEEP v1** — no post-hoc beats calibration on TUNE; **oracle-prior ceiling 0.8003 < v1 0.8029** → label-shift HURTS macro-F1. Run already ≈0.96 (calibrated); cap is rail. | squeeze macro-F1 via the metric-aligned decision rule |
+| 11 | **Soft-voting head E-VOTE-01** (calibrated vote of utica_V2+mantisv2_V1) | **KEEP** — `vote:weighted+recal` TEST **0.8342** vs best single utica_V2 0.8213 (**+0.0129**, TUNE-selected). Per-class: Run+0.02, Car+0.03, Bus+0.05, **Train+0.03**, no material regression (Still −0.02). The SHL-2025 winning family pays off. | diversity-not-routing late fusion |
 
 ## Banked negatives — do NOT re-chase
 Temporal smoothing (dead on shuffled test) · location-MoE · rail/magnetometer Train-Subway (H2)
@@ -64,8 +67,15 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 ## In progress / built, not yet concluded
 | experiment | what | status |
 |---|---|---|
-| **Soft-voting head** (`voting_head.py` → `voting_head.sbatch`, job `shl-vote`) | calibrated late-fusion vote of top-2 (utica_V2+mantisv2_V1): equal / TUNE-weighted / +recal; gated KEEP iff > best single +0.001 on lock TEST. MLflow-tracked (run `voting_utica_V2+mantisv2_V1`), artifact-snapshotted, diff-tested (`test_voting_head_combiner_math`). | **registered 2026-06-26** (committed, gate green 12/12); pending submit on Helios CPU |
+| **Per-channel extraction** (`extract_embeddings.py --per-channel`, job `shl-extract-pc`) | (n,C,d) V1 axes for utica+mantisv2 → cross-channel head input | **ready** (GH200); diff-tested |
+| **Cross-channel SE head** | the novel contribution; bar to beat = **0.8342** (the kept vote) | not built (after `_pc` extraction) |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
+
+**E-VOTE-01 CONCLUDED 2026-06-26 → KEEP** (result row #11). ⚠️ **Traceability flag:** single utica_V2 in
+the vote run = 0.8213 but `BAKEOFF_SPLIT.md` said 0.8157 (+0.0056, same recipe) — the pre-registered
+"single reproduces bake-off" check FAILED. Vote verdict unaffected (all rows share data), but the
+bake-off table is likely **stale vs regenerated features** → re-confirm the bake-off (≥utica_V2,
+mantisv2_V1) before citing absolute numbers. New best overall = vote+recal **0.8342**.
 
 ## Infra / correctness work
 - **MLflow traceability** mandated (track + artifact snapshot per experiment); split scheme + bare

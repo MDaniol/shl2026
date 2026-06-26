@@ -146,3 +146,11 @@ Stage-1/2 of the 8-stage workflow, written **before** submitting; results go to
   + `.json`. Diff-test `tests/test_guardrails.py::test_voting_head_combiner_math` guards the vote math.
 - **Next gate:** the KEEP/DISABLE TEST macro becomes the **bar the cross-channel SE head (#3) must
   clear** to justify its added complexity.
+
+**RESULT (concluded 2026-06-26 → KEEP):** `vote:weighted+recal` TEST **0.8342** vs best single
+utica_V2 **0.8213** (**+0.0129**, TUNE-selected 0.8614). Per-class clean (Run+0.02, Car+0.03,
+Bus+0.05, Train+0.03; Still −0.02 only). **The bar for the cross-channel SE head is now 0.8342.**
+⚠️ single utica_V2 here (0.8213) ≠ `BAKEOFF_SPLIT.md` (0.8157): pre-registered reproduce-check
+failed → bake-off likely stale vs regenerated features; re-confirm before citing absolute numbers
+(vote Δ unaffected — all rows share data). Submission: the vote (0.8342) > single, so ship the vote
+(needs `submit_vote.py`, Phase-B), not single utica_V2.
