@@ -97,6 +97,10 @@ overall = vote+recal **0.8342**.
   optional group `env.sh`. — use GH200 when Athena is busy.
 - **extract_embeddings now MLflow-logged** (per model×variant: params + windows/sec + manifest);
   fixed a `del lib,X` runtime bug from the TTA refactor (caught by the Helios smoke test).
+- **torch-gate fix (2026-06-26):** the new head/per-channel guardrail tests import torch, but the
+  **x86 CPU venv has no torch** (it lives only in the aarch64 GH200 venv) → the gate failed and
+  aborted `submit_vote`/`submit` on CPU. Fixed with `pytest.importorskip("torch")` so those tests
+  **skip on CPU, run fully on GH200**. (CPU venv = `$SCRATCH/venvs/shl2026`; aarch64 = `…-gh200`.)
 
 ## Next (prioritized)
 1. ✅ **Tier 1 done** → KEEP v1 (post-hoc tapped out; oracle ceiling < v1).

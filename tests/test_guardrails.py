@@ -203,7 +203,9 @@ def test_embed_per_channel_keeps_channels_separate():
     """Per-channel extraction stacks each channel's embedding -> (n, C, d), and the mean
     over channels reproduces a channel-pooled embedding (the property that makes per-channel
     a strict generalization for channel-independent FMs). Uses an identity embed_fn so the
-    result must equal the input exactly."""
+    result must equal the input exactly. Skips where torch is absent (the x86 CPU env runs
+    the gate but doesn't carry the FM stack — torch lives in the aarch64 GH200 env)."""
+    pytest.importorskip("torch")          # extract_embeddings imports torch at module load
     import numpy as np
     import extract_embeddings as ee
     n, C, T = 5, 9, 32
@@ -253,6 +255,8 @@ def test_eval_metrics_ece_and_robustness():
 def test_head_xchannel_forward_and_se_uses_channels():
     """The 4 channel-pool heads output (B,8); the SE head's output actually depends on
     channel content (it's not a glorified mean); a short train runs + yields normalized
-    probas. Guards the novel cross-channel head before any cluster run."""
+    probas. Guards the novel cross-channel head before any cluster run. Skips where torch is
+    absent (x86 CPU gate); runs fully on the aarch64 GH200 env where the head trains."""
+    pytest.importorskip("torch")
     import head_xchannel as hx
     hx.self_test()        # raises on any violation
