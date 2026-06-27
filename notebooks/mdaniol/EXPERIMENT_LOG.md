@@ -80,6 +80,7 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 |---|---|---|
 | **Per-channel extraction** (`extract_embeddings.py --per-channel`, job `shl-extract-pc`) | (n,C,d) V1 axes for utica+mantisv2 → cross-channel head input | **ready** (GH200); diff-tested |
 | **Cross-channel head E-HEAD-01** (`head_xchannel.py`, job `shl-head`) | mean/concat/multistat/**se** heads over (n,C,d)⊕520; ECE+robustness; ≥3 seeds; novel = SE channel-mixing | ✅ **CONCLUDED 2026-06-27** — H-chan weakly confirmed (+0.006 utica/CI-pos, +0.004 mantisv2/noise), best head 0.814 ≪ vote 0.834 → paper result, NOT a submission (row #12) |
+| **AST spectrogram voter E-AST-01** (`extract_embeddings.py --model ast`, job `shl-extract-ast`) | frozen AST ViT over per-channel IMU log-spectrograms (0–50 Hz band, NOT the audio mel front-end) → 768-d, mean over channels; the only architecturally-plausible new-FM diversity voter (UniMTS ruled out) | **BUILT + pre-registered** 2026-06-27; spectrogram diff-tested; SMOKE first (AST ViT is slow), then probe + add to vote. Bar: improve the vote on the lock |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
 **E-VOTE-01 CONCLUDED 2026-06-26 → KEEP** (result row #11). ⚠️ **Traceability flag + ROOT CAUSE:**

@@ -290,3 +290,20 @@ def test_vote_model_reuse_is_lossless():
     Pte_reload = np.stack([aligned_proba(c, Xte, w) for c, w in saved], 0)         # load-path vote
     got = cls[(np.einsum("knc,k->nc", Pte_reload, vw) * recal).argmax(1)]
     assert np.array_equal(ref, got), "reused models do not reproduce the vote prediction"
+
+
+def test_ast_spectrogram_shape_and_norm():
+    """AST branch: per-channel IMU log-spectrogram lands on AST's (n_frames, n_mels) grid, is
+    finite, and is per-spectrogram z-normalized (mean~0, std~1) as AST expects. Guards the new
+    spectrogram front-end before any GPU run. Skips where torch is absent (x86 CPU gate)."""
+    pytest.importorskip("torch")
+    import numpy as np
+    import extract_embeddings as ee
+    rng = np.random.default_rng(0)
+    t = np.arange(500) / 100
+    x = np.sin(2 * np.pi * 3 * t)[None].repeat(6, 0) + 0.1 * rng.standard_normal((6, 500))
+    S = ee.imu_log_spectrogram(x, n_mels=128, n_frames=1024)
+    assert tuple(S.shape) == (6, 1024, 128)
+    s = S.numpy()
+    assert np.isfinite(s).all()
+    assert abs(float(s.mean())) < 1e-3 and abs(float(s.std()) - 1.0) < 0.05

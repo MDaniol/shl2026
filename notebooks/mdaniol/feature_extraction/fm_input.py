@@ -192,8 +192,17 @@ def _limu_scale(x: np.ndarray, acc_g: float = 9.8, alpha: float = 2.0) -> np.nda
     return x
 
 
+def pack_ast(lib, variant: str = "V2"):
+    """AST / audio-spectrogram FM: return the RAW channel signals (n, C, 500) @100 Hz. NO length
+    adapter here — the embedder computes a per-channel log-spectrogram over the IMU band (0-50 Hz,
+    not the 16 kHz audio mel front-end) and applies the frozen AST ViT downstream. Default V2
+    (orientation-invariant magnitudes) to bound the per-channel spectrogram+ViT cost."""
+    names = VARIANTS[variant]
+    return _stack(lib, names), names
+
+
 PACKERS = {"moment": pack_moment, "mantis": pack_mantis,
-           "unimts": pack_unimts, "limu": pack_limu}
+           "unimts": pack_unimts, "limu": pack_limu, "ast": pack_ast}
 
 
 # ---------------------------------------------------------------------------

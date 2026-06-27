@@ -79,7 +79,46 @@ def embed_per_channel(X, embed_fn):
     return np.stack(chans, axis=1).astype(np.float32)            # (n, C, d)
 
 
+def imu_log_spectrogram(x, n_mels: int, n_frames: int, fs: int = 100):
+    """(n_signals, T) raw IMU -> (n_signals, n_frames, n_mels) log-power spectrogram on the AST
+    input grid. STFT over the IMU band (0-50 Hz @100 Hz — NOT the 16 kHz audio mel front-end, which
+    would squash our signal into one bin); log1p power; bilinear-resize to AST's (n_frames, n_mels);
+    per-spectrogram z-norm (AST expects standardized input). Library-first: scipy STFT + torch resize.
+    Returns a torch.FloatTensor."""
+    from scipy.signal import spectrogram as _spec
+    _, _, Sxx = _spec(np.asarray(x, dtype=np.float64), fs=fs, nperseg=64, noverlap=48, axis=-1)
+    S = torch.from_numpy(np.log1p(Sxx).astype(np.float32))[:, None]      # (n,1,F,Tt)
+    S = torch.nn.functional.interpolate(S, size=(n_mels, n_frames), mode="bilinear",
+                                        align_corners=False)[:, 0]        # (n, n_mels, n_frames)
+    S = S.transpose(1, 2)                                                 # (n, n_frames, n_mels) AST layout
+    mu = S.mean(dim=(1, 2), keepdim=True); sd = S.std(dim=(1, 2), keepdim=True) + 1e-6
+    return (S - mu) / sd
+
+
 def build_embedder(model: str, device: str, tf_batch: int):
+    if model == "ast":
+        # frozen Audio Spectrogram Transformer over per-channel IMU log-spectrograms -> 768-d,
+        # mean-pooled over channels. A representation ORTHOGONAL to the temporal FMs (diversity voter).
+        from transformers import ASTModel
+        m = ASTModel.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593").to(device).eval()
+        n_mels, n_frames = m.config.num_mel_bins, m.config.max_length
+
+        def embed(x):                                                    # x: (n, C, 500) raw channels
+            outs = []
+            with torch.no_grad():
+                for i in range(0, len(x), tf_batch):
+                    xb = x[i:i + tf_batch]
+                    b, C, T = xb.shape
+                    spec = imu_log_spectrogram(xb.reshape(b * C, T), n_mels, n_frames).to(device)
+                    e = m(input_values=spec).pooler_output               # (b*C, 768)
+                    outs.append(e.reshape(b, C, -1).mean(1).cpu().numpy())  # mean over channels
+                    del xb, spec, e
+            empty_cache(device)
+            out = np.concatenate(outs, 0).astype(np.float32)
+            np.nan_to_num(out, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+            return out
+        return embed, fi.pack_ast
+
     if model in ("mantisv2", "mantis8m", "utica"):
         from mantis.trainer import MantisTrainer
         if model == "mantisv2":
