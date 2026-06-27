@@ -35,5 +35,6 @@ python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >
 echo "[$(date)] A1 pair-separability EMB=$EMB REP=$REP on $(hostname)"
 python "$M/pair_separability.py" --emb "$EMB" --rep "$REP" \
     --feat-dir "$PROJECT_DIR/dataset_parquet_features" \
-    --emb-root "$PROJECT_DIR/embeddings" --split "$SPLIT"
+    --emb-root "$PROJECT_DIR/embeddings" --split "$SPLIT" \
+    --out "notebooks/mdaniol/PAIR_SEPARABILITY_${EMB}_${REP}.md"   # rep-specific (parallel-safe)
 echo "[$(date)] done — see PAIR_SEPARABILITY.md + MLflow run pairsep_${EMB}_${REP}."
