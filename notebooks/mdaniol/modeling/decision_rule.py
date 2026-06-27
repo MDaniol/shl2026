@@ -114,8 +114,12 @@ def main() -> int:
         print(f"[decision] fused {e}", flush=True)
     Ptu, Pte = np.stack(Ptu_list, 0), np.stack(Pte_list, 0)
     w = weight_search(Ptu, ytune, len(embs))
-    wv_tu = _norm(np.einsum("knc,k->nc", Ptu, w))
-    wv_te = _norm(np.einsum("knc,k->nc", Pte, w))
+    # NOTE: mirror voting_head EXACTLY (no pre-normalization) so `mult_reweight` reproduces the locked
+    # champion bit-for-bit (M4): voting_head uses the raw einsum mixture into calibrate(). Per-FM probas
+    # are already row-normalized and w sums to 1, so rows already ≈sum to 1; we normalize ONLY inside the
+    # log() of the additive rules.
+    wv_tu = np.einsum("knc,k->nc", Ptu, w)
+    wv_te = np.einsum("knc,k->nc", Pte, w)
     print(f"[decision] vote weights={dict(zip(embs, np.round(w, 3)))}", flush=True)
 
     # --- decision rules: select params on TUNE, evaluate on TEST once --------------------------
@@ -129,39 +133,49 @@ def main() -> int:
               flush=True)
 
     record("baseline", cls[wv_tu.argmax(1)], cls[wv_te.argmax(1)])
-    cw = calibrate(wv_tu, cls, ytune)                                   # current champion rule
+    cw = calibrate(wv_tu, cls, ytune)                                   # champion rule (identical to voting_head)
     record("mult_reweight", cls[(wv_tu * cw).argmax(1)], cls[(wv_te * cw).argmax(1)])
-    b = additive_bias_search(wv_tu, ytune, cls)                         # NEW: additive log-bias
-    lt, le = np.log(wv_tu + EPS), np.log(wv_te + EPS)
-    record("additive_logit", cls[(lt + b).argmax(1)], cls[(le + b).argmax(1)])
-    # additive on top of the multiplicative recal (does the additive part add beyond mult?)
-    b2 = additive_bias_search(wv_tu * cw, ytune, cls)
-    record("mult+additive", cls[(np.log(wv_tu * cw + EPS) + b2).argmax(1)],
-           cls[(np.log(wv_te * cw + EPS) + b2).argmax(1)])
-    # SLD (secondary, shift-test-gated): src prior = TUNE predicted-proba mean
-    src_prior = wv_tu.mean(0)
-    _, tgt = sld_correct(wv_te, src_prior)
+    # champion-reproduction sanity (ties to the determinism note): mult_reweight should ≈ the locked bar
+    champ_te = rules["mult_reweight"][1]["macro_f1"]
+    if abs(champ_te - args.bar) > 0.01:
+        print(f"[decision] WARNING: reproduced champion TEST={champ_te:.4f} differs from --bar "
+              f"{args.bar:.4f} by >0.01 — check the split/embeddings match the locked run.", flush=True)
+    b = additive_bias_search(wv_tu, ytune, cls)                         # NEW: additive log-bias (joint CD on TUNE)
+    record("additive_logit", cls[(np.log(_norm(wv_tu) + EPS) + b).argmax(1)],
+           cls[(np.log(_norm(wv_te) + EPS) + b).argmax(1)])
+    b2 = additive_bias_search(wv_tu * cw, ytune, cls)                   # additive ON TOP of the mult recal
+    record("mult+additive", cls[(np.log(_norm(wv_tu * cw) + EPS) + b2).argmax(1)],
+           cls[(np.log(_norm(wv_te * cw) + EPS) + b2).argmax(1)])
+    # SLD — INFORMATIONAL ONLY, never KEEP-eligible (M3). Transductive: it reads the global TEST-pool
+    # prior → a rules risk until confirmed whole-test stats are permitted. Measure + apply in the SAME
+    # (calibrated) space (M2). TUNE column = champion preds (SLD has no TUNE-selected params).
+    cal_tu, cal_te = _norm(wv_tu * cw), _norm(wv_te * cw)
+    src_prior = cal_tu.mean(0)
+    corr_te, tgt = sld_correct(cal_te, src_prior)
     shift = float(np.abs(tgt - src_prior).max())
-    if shift > args.sld_shift_thresh:
-        corr_te, _ = sld_correct(wv_te * cw, (wv_tu * cw).mean(0))
-        record(f"sld_gated(shift={shift:.3f})", cls[(wv_tu * cw).argmax(1)], cls[corr_te.argmax(1)])
-    else:
-        print(f"[decision] SLD not applied (shift {shift:.3f} ≤ {args.sld_shift_thresh}); "
-              f"flagged: verify rules permit whole-test prior adaptation before shipping.", flush=True)
-
-    # --- gate + write ---------------------------------------------------------------------------
-    champ = rules["mult_reweight"][1]["macro_f1"]
-    best = max(rules, key=lambda n: rules[n][0]["macro_f1"])            # SELECT on TUNE
-    best_test = rules[best][1]["macro_f1"]
-    keep = best_test > args.bar + 0.001 and best != "mult_reweight"
-    print(f"\n[decision] champion(mult_reweight) TEST={champ:.4f}; bar={args.bar:.4f}; "
-          f"best-on-TUNE={best} TEST={best_test:.4f} -> {'KEEP' if keep else 'no improvement'}",
+    record("sld_info", cls[(wv_tu * cw).argmax(1)], cls[corr_te.argmax(1)])
+    print(f"[decision] SLD shift={shift:.3f} (calibrated space). INFORMATIONAL ONLY — transductive global "
+          f"TEST prior; NEVER KEEP-eligible until the rules confirm whole-test statistics are allowed.",
           flush=True)
 
+    # --- gate (M1): vs the WITHIN-RUN champion, with a selection-lock-gap budget; SLD excluded -------
+    champ_tu = rules["mult_reweight"][0]["macro_f1"]
+    champ_gap = champ_tu - champ_te
+    cands = {n: v for n, v in rules.items()
+             if n not in ("baseline", "mult_reweight") and not n.startswith("sld")}
+    best = max(cands, key=lambda n: cands[n][0]["macro_f1"])            # SELECT on TUNE
+    best_tu, best_test = cands[best][0]["macro_f1"], cands[best][1]["macro_f1"]
+    best_gap = best_tu - best_test
+    keep = (best_test > champ_te + 0.001) and (best_gap <= champ_gap + 0.01)   # beat champ on TEST + lock-gap budget
+    print(f"\n[decision] champion(mult_reweight) TEST={champ_te:.4f} (gap {champ_gap:+.4f}); "
+          f"best-on-TUNE={best} TEST={best_test:.4f} (gap {best_gap:+.4f}) -> "
+          f"{'KEEP' if keep else 'no improvement / overfit-gated'}", flush=True)
+
     lines = [f"# C1 decision-layer over vote({'+'.join(embs)}) — select on TUNE, lock TEST once "
-             f"(bar={args.bar}).",
-             f"champion `mult_reweight` TEST={champ:.4f}; best-on-TUNE=`{best}` TEST={best_test:.4f} "
-             f"**{'KEEP' if keep else 'no improvement'}**.\n",
+             f"(champion={champ_te:.4f}, bar-ref={args.bar}).",
+             f"champion `mult_reweight` TEST={champ_te:.4f} (gap {champ_gap:+.4f}); best-on-TUNE=`{best}` "
+             f"TEST={best_test:.4f} (gap {best_gap:+.4f}) **{'KEEP' if keep else 'no improvement'}** "
+             f"(SLD informational-only, excluded from gate).\n",
              "| rule | TUNE macro | TEST macro | per-class F1 (TEST) |", "|---|---|---|---|"]
     for name, (r_tu, r_te) in rules.items():
         pc = " ".join(f"{k[:2]}={d['f1']:.2f}" for k, d in r_te["per_class"].items())
@@ -175,7 +189,8 @@ def main() -> int:
                        "protocol": "additive-logit joint-CD vs multiplicative; select TUNE, lock TEST"},
                tags={"phase": "decision", "experiment": "C1-decision-rule",
                      "decision": "KEEP" if keep else "DISABLE"}) as run:
-        run.log_metrics({"macro_f1": best_test, "champion_test": champ}
+        run.log_metrics({"macro_f1": best_test, "champion_test": champ_te, "best_gap": best_gap,
+                         "champ_gap": champ_gap, "sld_shift": shift}
                         | {f"{n}_test": rules[n][1]["macro_f1"] for n in rules}
                         | {f"{n}_tune": rules[n][0]["macro_f1"] for n in rules})
         run.log_artifact(args.out)
