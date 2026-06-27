@@ -95,7 +95,56 @@ def imu_log_spectrogram(x, n_mels: int, n_frames: int, fs: int = 100):
     return (S - mu) / sd
 
 
-def build_embedder(model: str, device: str, tf_batch: int):
+def imu_spectrogram_image(x, size: int, mean, std, fs: int = 100):
+    """(n_signals, T) raw IMU -> (n_signals, 3, size, size) normalized RGB-replicated spectrogram
+    IMAGE for a frozen vision ViT (DINOv2/CLIP/SigLIP). STFT over the IMU band -> log1p -> per-image
+    min-max to [0,1] -> bilinear resize to size x size -> replicate to 3 channels -> apply the ViT's
+    (mean,std) normalization. Library-first: scipy STFT + torch resize. Returns a torch.FloatTensor."""
+    from scipy.signal import spectrogram as _spec
+    _, _, Sxx = _spec(np.asarray(x, dtype=np.float64), fs=fs, nperseg=64, noverlap=48, axis=-1)
+    S = torch.from_numpy(np.log1p(Sxx).astype(np.float32))[:, None]      # (n,1,F,Tt)
+    S = torch.nn.functional.interpolate(S, size=(size, size), mode="bilinear",
+                                        align_corners=False)              # (n,1,size,size)
+    lo = S.amin(dim=(2, 3), keepdim=True); hi = S.amax(dim=(2, 3), keepdim=True)
+    S = (S - lo) / (hi - lo + 1e-6)                                       # per-image [0,1]
+    S = S.repeat(1, 3, 1, 1)                                              # RGB-replicate
+    m = torch.tensor(mean, dtype=torch.float32).view(1, 3, 1, 1)
+    sd = torch.tensor(std, dtype=torch.float32).view(1, 3, 1, 1)
+    return (S - m) / sd
+
+
+# vision ViTs usable as frozen image encoders on IMU spectrogram-images (TiViT, arXiv:2506.08641).
+VIT_IDS = {"dinov2": "facebook/dinov2-with-registers-base",
+           "dinov2-large": "facebook/dinov2-with-registers-large"}
+
+
+def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float = 0.65):
+    if model in VIT_IDS:
+        # frozen vision ViT over per-channel IMU spectrogram-IMAGES; use an INTERMEDIATE layer
+        # (TiViT: ~40-70% depth beats the final block); mean-pool tokens, then mean over channels.
+        from transformers import AutoModel, AutoImageProcessor
+        vid = VIT_IDS[model]
+        proc = AutoImageProcessor.from_pretrained(vid)
+        net = AutoModel.from_pretrained(vid, output_hidden_states=True).to(device).eval()
+        size = int(proc.crop_size["height"]) if getattr(proc, "crop_size", None) else 224
+        mean, std = proc.image_mean, proc.image_std
+        L = max(1, int(round(vit_layer_frac * net.config.num_hidden_layers)))
+
+        def embed(x):                                                    # x: (n, C, 500) raw channels
+            outs = []
+            with torch.no_grad():
+                for i in range(0, len(x), tf_batch):
+                    xb = x[i:i + tf_batch]; b, C, T = xb.shape
+                    img = imu_spectrogram_image(xb.reshape(b * C, T), size, mean, std).to(device)
+                    hs = net(pixel_values=img).hidden_states[L]          # (b*C, tokens, d)
+                    emb = hs.mean(1).reshape(b, C, -1).mean(1)           # mean tokens, mean channels
+                    outs.append(emb.cpu().numpy()); del xb, img, hs, emb
+            empty_cache(device)
+            out = np.concatenate(outs, 0).astype(np.float32)
+            np.nan_to_num(out, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+            return out
+        return embed, fi.pack_ast
+
     if model == "ast":
         # frozen Audio Spectrogram Transformer over per-channel IMU log-spectrograms -> 768-d,
         # mean-pooled over channels. A representation ORTHOGONAL to the temporal FMs (diversity voter).
@@ -194,6 +243,9 @@ def main() -> int:
                          "is the input for the cross-channel head (LIGHTWEIGHT_HEAD_PLAN H-chan); "
                          "use with an axis variant (V1), not magnitudes (V2).")
     ap.add_argument("--max-tilt-deg", type=float, default=30.0, help="gravity_aware tilt bound")
+    ap.add_argument("--vit-layer-frac", type=float, default=0.65,
+                    help="for vision-ViT models (dinov2*): which hidden layer to read, as a fraction "
+                         "of depth — TiViT (arXiv:2506.08641) finds 40-70%% beats the final block.")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--splits", default="train,validation,test",
                     help="which splits to extract (comma list) — e.g. 'validation,test' for "
@@ -209,7 +261,7 @@ def main() -> int:
     if args.prefetch:
         dev = "cpu"   # download only; avoid CUDA init so it runs anywhere
         print(f"[prefetch] downloading {args.model} weights -> HF cache ...", flush=True)
-        build_embedder(args.model, dev, args.tf_batch)
+        build_embedder(args.model, dev, args.tf_batch, args.vit_layer_frac)
         print(f"[prefetch] {args.model} cached. Safe to run the parallel array now.", flush=True)
         return 0
 
@@ -217,7 +269,7 @@ def main() -> int:
         ap.error("--tta-k requires --rotation so3|gravity_aware")
     if args.per_channel and args.tta_k:
         ap.error("--per-channel and --tta-k are mutually exclusive (combine later if needed)")
-    embed, packer = build_embedder(args.model, args.device, args.tf_batch)
+    embed, packer = build_embedder(args.model, args.device, args.tf_batch, args.vit_layer_frac)
     tag = (f"{args.model}_{args.variant}"
            + ("_pc" if args.per_channel else "")
            + (f"_tta{args.tta_k}{args.rotation}" if args.tta_k else ""))

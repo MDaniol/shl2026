@@ -307,3 +307,22 @@ def test_ast_spectrogram_shape_and_norm():
     s = S.numpy()
     assert np.isfinite(s).all()
     assert abs(float(s.mean())) < 1e-3 and abs(float(s.std()) - 1.0) < 0.05
+
+
+def test_vit_spectrogram_image_shape_and_norm():
+    """Vision-ViT branch: per-channel IMU spectrogram-image lands on (n,3,size,size), is finite,
+    and is min-maxed-then-(mean,std)-normalized per the ViT's processor (RGB-replicated). Guards
+    the DINOv2/CLIP image front-end before any GPU run. Skips where torch is absent (CPU gate)."""
+    pytest.importorskip("torch")
+    import numpy as np
+    import extract_embeddings as ee
+    rng = np.random.default_rng(0)
+    x = np.sin(2 * np.pi * 3 * (np.arange(500) / 100))[None].repeat(5, 0) + 0.1 * rng.standard_normal((5, 500))
+    img = ee.imu_spectrogram_image(x, 224, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    assert tuple(img.shape) == (5, 3, 224, 224)
+    a = img.numpy()
+    assert np.isfinite(a).all()
+    # pre-norm RGB channels were identical (replicate) -> after de-norm they match
+    de = a * np.array([0.229, 0.224, 0.225])[None, :, None, None] + np.array([0.485, 0.456, 0.406])[None, :, None, None]
+    assert np.allclose(de[:, 0], de[:, 1], atol=1e-4) and np.allclose(de[:, 1], de[:, 2], atol=1e-4)
+    assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
