@@ -53,5 +53,6 @@ done; done
 echo "[$(date)] cross-channel head: emb=$EMB_PC heads=$HEADS seeds=$SEEDS bar=$BAR on $(hostname)"
 nvidia-smi --query-gpu=name --format=csv,noheader || true
 python $M/head_xchannel.py --emb-pc "$EMB_PC" --heads "$HEADS" --seeds "$SEEDS" --bar "$BAR" \
-    --emb-root "$PROJECT_DIR/embeddings" --feat-dir "$FEAT" --split "$SPLIT" --device cuda
-echo "[$(date)] done. Read HEAD_RESULTS.md + MLflow; if SE KEEP, it's the paper's method."
+    --emb-root "$PROJECT_DIR/embeddings" --feat-dir "$FEAT" --split "$SPLIT" --device cuda \
+    --out "notebooks/mdaniol/HEAD_RESULTS_${EMB_PC}.md"   # per-FM file -> no clobber across EMB_PC runs
+echo "[$(date)] done. Read HEAD_RESULTS_${EMB_PC}.md + MLflow; if SE KEEP, it's a paper method."

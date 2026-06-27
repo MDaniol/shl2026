@@ -187,3 +187,26 @@ multistat are **well-calibrated** (ECE 0.022–0.026 vs concat 0.052); rail (Tra
 cross-channel mixing is a real-but-small, FM-dependent effect → a paper finding (channel-mean nearly
 sufficient for frozen IMU FMs; good calibration), NOT a submission component.** v3 vote stays best.
 Head-vote (E-HEAD-02) would land ~0.81 < 0.834 → not worth running.
+
+### E-FMDIV-HEAD — cross-channel SE head on the spectrogram-FM voters (registered 2026-06-27)
+Pre-registered before peeking. Reuses `head_xchannel.py` (E-HEAD-01 machinery, validation-cleared)
+on the NEW per-channel spectrogram-FM embeddings; `hpc/head_xchannel_helios.sbatch` (writes
+per-FM `HEAD_RESULTS_<tag>.md`). Research basis: `VISION_SOUND_FM_RESEARCH.md` (TiViT 2506.08641).
+
+- **Inputs:** `ast_V2_pc`, `dinov2_V2_pc` — `(n, 5, d)` per-channel embeddings (5 orientation-invariant
+  magnitude channels embedded independently by the frozen AST / DINOv2). (ImageBind is native-joint
+  `(n,1024)`, not channel-independent → it goes through the bake-off, not this head.)
+- **Hypothesis (H-chan, transferred):** learning to MIX the 5 frozen spectrogram-FM channel-embeddings
+  (SE block) beats their channel-mean, recovering cross-sensor coupling the mean discards — same
+  mechanism that gave +0.006 on the temporal FMs (E-HEAD-01).
+- **Protocol:** `head_xchannel` runs mean / concat / multistat / **SE** over the 5 channels ⊕ 520
+  handcrafted → MLP → 8 classes. Fit FIT, select head+seed on TUNE, lock TEST once, ≥3 seeds (mean±std),
+  per-class + ECE + missing-channel robustness, BHT-only (TEST excludes Hand by split construction).
+- **Decision rule (frozen):** (1) per FM, KEEP the SE head iff its TEST mean−std > the mean baseline
+  (does cross-channel mixing help this FM?); (2) is any spectrogram-FM head **competitive** with the
+  0.834 vote / its single-FM fusion? Only if a head is competitive do we build the **head-vote**
+  (combine its probas with the UTICA+MantisV2 vote) — evidence-gated, to avoid E-HEAD-01's outcome
+  (head real-but-small, didn't beat the vote). A flat result is a clean publishable ablation.
+- **Run:** `EMB_PC=ast_V2_pc sbatch …/head_xchannel_helios.sbatch` ; `EMB_PC=dinov2_V2_pc sbatch …`.
+- **Traceability:** MLflow run `head_<emb_pc>` (bare macro_f1 + per-head + per-class + ECE) +
+  `HEAD_RESULTS_<tag>.md` + split snapshot; pre-reg here; diary conclusion on completion.
