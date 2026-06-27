@@ -21,8 +21,12 @@ temporal+embargo split, Bag/Hips/Torso eval, per-window (test is shuffled → no
   Fitbit data, sensor-language not IMU embedder), **LSM** (Google — proprietary minute-level wrist
   HR/EDA/skin-temp, no weights, wrong modality) — **all dropped**. **CrossHAR** modality-OK but
   small/low-upside + weights unconfirmed → low priority. The bake-off settled the FM lane (~+0.025
-  ceiling); gains now come from the **head + vote**. Only **UniMTS** (public weights, packer stubbed)
-  is worth a future bet — gated behind the head.
+  ceiling); gains now come from the **head + vote**. **UniMTS ruled out 2026-06-27** after reading
+  its `model.py`: it's `ST_GCN_18`, a 22-node **skeleton** graph (3D-per-joint multi-joint motion) —
+  using it for single-location phone IMU is a forced OOD hack (1 of 22 joints, ambiguous joint id,
+  acc-only 3ch). **No new-FM candidate cleanly fits** single-position 9-ch phone IMU; temporal FMs
+  (MOMENT/Mantis/UTICA) are the right family and are exhausted at the vote. Only an **audio-spectrogram
+  FM (AST/BEATs)** remains architecturally plausible as a diversity voter (the deferred vision lane).
 
 ## Job tracker (sbatch / driver / status)
 `squeue --me` shows the **job-name**. GPU extraction = Athena (x86 A100) **or Helios GH200 (aarch64)**;
