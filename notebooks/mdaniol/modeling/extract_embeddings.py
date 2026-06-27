@@ -114,8 +114,11 @@ def imu_spectrogram_image(x, size: int, mean, std, fs: int = 100):
 
 
 # vision ViTs usable as frozen image encoders on IMU spectrogram-images (TiViT, arXiv:2506.08641).
-VIT_IDS = {"dinov2": "facebook/dinov2-with-registers-base",
-           "dinov2-large": "facebook/dinov2-with-registers-large"}
+# Register-free DINOv2 — the with-registers checkpoints need transformers>=4.48 (we pin 4.44.2); the
+# n_prefix logic below handles both (register-free -> drop CLS only). TiViT's intermediate-layer
+# patch-pooling result doesn't depend on registers.
+VIT_IDS = {"dinov2": "facebook/dinov2-base",
+           "dinov2-large": "facebook/dinov2-large"}
 
 
 def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float = 0.65):
