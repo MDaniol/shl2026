@@ -103,6 +103,16 @@ declare it (temporal FMs + AST/DINOv2 don't carry NC; decide whether ImageBind f
 release). **PRIMUS: GATED** — exact contract lives in the repo's `lib/` Lightning modules (not the
 README), needs a source-dive + Lightning/CLIP deps; same head-mounted domain axis as ImageBind → build
 only if ImageBind shows the native-IMU axis helps the vote.
+
+**E-FMDIV 3rd validation pass (2× har-dl-scientist, 2026-06-27) → CLEARED end-to-end.**
+(1) Downstream consumption audit: bake-off/vote code correct + leak-safe for the new voters (row
+alignment verified, 2-D path handles 768/1024-d, vote K-generic, TUNE/TEST/BHT preserved) — NO source
+bugs; applied probe_fusion_ares `--array 0-13` + appended ast_V2/dinov2_V2/imagebind_V0 + fail-loud
+row-count assert (8f309f3). (2) Final-clearance: **found a NO-GO blocker the gate was blind to** —
+`dinov2-with-registers-*` needs transformers≥4.48 (we pin 4.44.2) → ViT `from_pretrained` would crash
+on GH200; switched VIT_IDS → register-free `facebook/dinov2-base/-large` (f0a33df). AST + ImageBind
+were GO as-is. **All 21 guardrail tests pass (rc=0).** AST + DINOv2 + ImageBind extraction→bake-off→vote
+now validated end-to-end and cleared to run (smoke-first). 3 validation passes total (5 agent-audits).
 | **AST spectrogram voter E-AST-01** (`extract_embeddings.py --model ast`, job `shl-extract-ast`) | frozen AST ViT over per-channel IMU log-spectrograms (0–50 Hz band, NOT the audio mel front-end) → 768-d, mean over channels | **BUILT + pre-registered** 2026-06-27; spectrogram diff-tested; SMOKE first, then probe + add to vote |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
