@@ -29,6 +29,7 @@ source "$PROJECT_DIR/notebooks/mdaniol/hpc/env_mdaniol.sh"   # aarch64 venv (tor
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs "$EMB"
 python -c "import transformers, scipy" 2>/dev/null || uv pip install "transformers==4.44.2" scipy
+python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >&2; exit 1; }
 
 echo "[$(date)] HELIOS GH200 ViT extract $MODEL variant=$VARIANT layer-frac=$LFRAC limit=${LIMIT:-all} -> $EMB/${MODEL}_${VARIANT}"
 nvidia-smi --query-gpu=name --format=csv,noheader || true

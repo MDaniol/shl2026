@@ -92,7 +92,7 @@ def imu_log_spectrogram(x, n_mels: int, n_frames: int, fs: int = 100):
                                         align_corners=False)[:, 0]        # (n, n_mels, n_frames)
     S = S.transpose(1, 2)                                                 # (n, n_frames, n_mels) AST layout
     mu = S.mean(dim=(1, 2), keepdim=True); sd = S.std(dim=(1, 2), keepdim=True) + 1e-6
-    return (S - mu) / sd
+    return ((S - mu) / sd) * 0.5                                          # AST contract: mean 0, std 0.5
 
 
 def imu_spectrogram_image(x, size: int, mean, std, fs: int = 100):
@@ -129,6 +129,10 @@ def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float
         size = int(proc.crop_size["height"]) if getattr(proc, "crop_size", None) else 224
         mean, std = proc.image_mean, proc.image_std
         L = max(1, int(round(vit_layer_frac * net.config.num_hidden_layers)))
+        # drop the non-spatial prefix tokens (CLS + register tokens) before mean-pooling — the
+        # registers are high-norm internal-computation tokens (arXiv:2309.16588) and pooling them
+        # in injects noise; TiViT pools PATCH tokens only. n_prefix = 1 (CLS) + num_register_tokens.
+        n_prefix = 1 + int(getattr(net.config, "num_register_tokens", 0) or 0)
 
         def embed(x):                                                    # x: (n, C, 500) raw channels
             outs = []
@@ -137,7 +141,7 @@ def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float
                     xb = x[i:i + tf_batch]; b, C, T = xb.shape
                     img = imu_spectrogram_image(xb.reshape(b * C, T), size, mean, std).to(device)
                     hs = net(pixel_values=img).hidden_states[L]          # (b*C, tokens, d)
-                    emb = hs.mean(1).reshape(b, C, -1).mean(1)           # mean tokens, mean channels
+                    emb = hs[:, n_prefix:].mean(1).reshape(b, C, -1).mean(1)  # patch tokens, mean channels
                     outs.append(emb.cpu().numpy()); del xb, img, hs, emb
             empty_cache(device)
             out = np.concatenate(outs, 0).astype(np.float32)
@@ -257,6 +261,10 @@ def main() -> int:
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available()
                     else ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
+    # pin torch/cuda determinism BEFORE any forward pass (track() seeds too late — it opens at the
+    # END of main, after extraction). GUARDRAILS §4 "determinism or it didn't happen".
+    from shl2026.tracking.run_context import set_global_seeds
+    set_global_seeds(args.seed)
 
     if args.prefetch:
         dev = "cpu"   # download only; avoid CUDA init so it runs anywhere
@@ -286,8 +294,16 @@ def main() -> int:
     for split, loc in jobs:
         src = args.data_dir / split / f"{loc}.parquet"
         outp = outdir / f"{split}__{loc}.npy"
-        if outp.exists():
-            print(f"  skip {outp.name} (exists)", flush=True); continue
+        if outp.exists():                                # resume: COUNT the existing file (§8 manifest)
+            arr = np.load(outp, mmap_mode="r")
+            n_ex, d_ex = int(arr.shape[0]), int(arr.shape[-1])
+            c_ex = int(arr.shape[1]) if arr.ndim == 3 else 0
+            del arr
+            manifest.append({"file": f"{tag}/{split}__{loc}.npy", "rows": n_ex, "dim": d_ex, "n_chan": c_ex})
+            total_win += n_ex
+            if emb_dim is None: emb_dim = d_ex
+            if c_ex and n_chan is None: n_chan = c_ex
+            print(f"  skip {outp.name} (exists, {n_ex} rows counted)", flush=True); continue
         pf = pq.ParquetFile(src)
         n_rows = pf.metadata.num_rows
         if args.limit:
@@ -328,6 +344,8 @@ def main() -> int:
             del acc, gyr, mag, e          # lib/X are local to embed_one() now
             gc.collect()
             print(f"    {split}/{loc} {pos}/{n_rows} ({pos/(time.time()-t0):.0f}/s)", flush=True)
+        if mm is None:                                   # no batches produced (empty/edge input)
+            print(f"  WARN {outp.name}: 0 rows written — nothing saved", flush=True); continue
         mm.flush(); del mm
         manifest.append({"file": f"{tag}/{split}__{loc}.npy", "rows": int(n_rows),
                          "dim": int(emb_dim or 0), "n_chan": int(n_chan or 0)})

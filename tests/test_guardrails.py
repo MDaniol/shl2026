@@ -306,7 +306,7 @@ def test_ast_spectrogram_shape_and_norm():
     assert tuple(S.shape) == (6, 1024, 128)
     s = S.numpy()
     assert np.isfinite(s).all()
-    assert abs(float(s.mean())) < 1e-3 and abs(float(s.std()) - 1.0) < 0.05
+    assert abs(float(s.mean())) < 1e-3 and abs(float(s.std()) - 0.5) < 0.05   # AST contract: std 0.5
 
 
 def test_vit_spectrogram_image_shape_and_norm():

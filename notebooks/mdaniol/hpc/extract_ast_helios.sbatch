@@ -31,6 +31,7 @@ cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs "$EMB"
 # transformers (ASTModel) + scipy must be present in the aarch64 env
 python -c "import transformers, scipy" 2>/dev/null || uv pip install "transformers==4.44.2" scipy
+python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >&2; exit 1; }
 
 echo "[$(date)] HELIOS GH200 AST extract variant=$VARIANT limit=${LIMIT:-all} -> $EMB/ast_${VARIANT}"
 nvidia-smi --query-gpu=name --format=csv,noheader || true
