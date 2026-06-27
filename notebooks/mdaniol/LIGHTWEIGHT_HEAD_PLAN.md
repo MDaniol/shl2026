@@ -177,3 +177,13 @@ job `shl-head`), gate green, diff-tested (`test_head_xchannel_forward_and_se_use
 - **Prereq:** `extract_per_channel_helios.sbatch` (job `shl-extract-pc`) → `embeddings/<fm>_V1_pc/`.
 - **Traceability:** MLflow run `head_<emb_pc>` (bare macro_f1 = TUNE-winner lock + per-head + per-class
   + ECE) + `HEAD_RESULTS.md` artifact; pre-reg here; commit; diary conclusion on completion.
+
+**RESULT (concluded 2026-06-27):** H-chan **weakly confirmed but does NOT beat the vote.** SE >
+channel-mean by **+0.006** (utica_V1_pc 0.8058 vs 0.8001, CI-positive → KEEP) and **+0.004**
+(mantisv2_V1_pc 0.8137 vs 0.8100, within-noise → DISABLE). Best head 0.814 ≪ E-VOTE-01 vote **0.834**
+and below even utica_V2 fusion (0.82) — heads ran on the weaker V1 (axes) variant, and a small MLP on
+per-channel V1 ≈ V1 fusion + a sliver from SE; it can't beat LGBM-fusion + the calibrated vote. SE &
+multistat are **well-calibrated** (ECE 0.022–0.026 vs concat 0.052); rail (Train/Subway) unmoved. **Net:
+cross-channel mixing is a real-but-small, FM-dependent effect → a paper finding (channel-mean nearly
+sufficient for frozen IMU FMs; good calibration), NOT a submission component.** v3 vote stays best.
+Head-vote (E-HEAD-02) would land ~0.81 < 0.834 → not worth running.

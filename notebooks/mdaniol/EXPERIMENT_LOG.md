@@ -63,6 +63,7 @@ Done/banked earlier (results in the table below): `shl-split`, `shl-base`, `shl-
 | 9 | **H2 rail magnetometer** (gravity-referenced, leave-one-bout-out) | **NEGATIVE** — LOBO 0.67 ≈ majority 0.60; cue is route- not mode-specific | bottom(metro)-vs-top(train) power hypothesis |
 | 10 | **Tier-1 post-hoc** (calibration / logit-adj / MLLS prior) | **KEEP v1** — no post-hoc beats calibration on TUNE; **oracle-prior ceiling 0.8003 < v1 0.8029** → label-shift HURTS macro-F1. Run already ≈0.96 (calibrated); cap is rail. | squeeze macro-F1 via the metric-aligned decision rule |
 | 11 | **Soft-voting head E-VOTE-01** (calibrated vote of utica_V2+mantisv2_V1) | **KEEP** — `vote:weighted+recal` TEST **0.8342** vs best single utica_V2 0.8213 (**+0.0129**, TUNE-selected). Per-class: Run+0.02, Car+0.03, Bus+0.05, **Train+0.03**, no material regression (Still −0.02). The SHL-2025 winning family pays off. | diversity-not-routing late fusion |
+| 12 | **Cross-channel head E-HEAD-01** (mean/concat/multistat/SE over per-channel V1, 3 seeds) | **H-chan weakly confirmed, does NOT beat the vote.** SE > channel-mean by +0.006 (utica, CI-positive KEEP) / +0.004 (mantisv2, within-noise). Best head 0.814 ≪ vote 0.834 (heads on weak V1 variant; small MLP can't beat LGBM-fusion+vote). SE/multistat well-calibrated (ECE 0.022–0.026). Rail not moved. **Paper result, not a submission.** | the sanctioned innovation surface (lightweight heads) |
 
 ## Banked negatives — do NOT re-chase
 Temporal smoothing (dead on shuffled test) · location-MoE · rail/magnetometer Train-Subway (H2)
@@ -74,7 +75,7 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 | experiment | what | status |
 |---|---|---|
 | **Per-channel extraction** (`extract_embeddings.py --per-channel`, job `shl-extract-pc`) | (n,C,d) V1 axes for utica+mantisv2 → cross-channel head input | **ready** (GH200); diff-tested |
-| **Cross-channel head E-HEAD-01** (`head_xchannel.py`, job `shl-head`) | mean/concat/multistat/**se** heads over (n,C,d)⊕520; ECE+robustness; ≥3 seeds; novel = SE channel-mixing | **BUILT + pre-registered** 2026-06-26 (diff-tested); needs `_pc` extraction first; bar 0.8342 |
+| **Cross-channel head E-HEAD-01** (`head_xchannel.py`, job `shl-head`) | mean/concat/multistat/**se** heads over (n,C,d)⊕520; ECE+robustness; ≥3 seeds; novel = SE channel-mixing | ✅ **CONCLUDED 2026-06-27** — H-chan weakly confirmed (+0.006 utica/CI-pos, +0.004 mantisv2/noise), best head 0.814 ≪ vote 0.834 → paper result, NOT a submission (row #12) |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
 **E-VOTE-01 CONCLUDED 2026-06-26 → KEEP** (result row #11). ⚠️ **Traceability flag + ROOT CAUSE:**
