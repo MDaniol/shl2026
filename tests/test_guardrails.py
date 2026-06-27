@@ -345,3 +345,11 @@ def test_pack_imagebind_contract():
     assert np.abs(x.mean(axis=-1)).max() < 1e-4               # per-channel zero-mean
     # NOT z-normed: per-channel std must vary (not forced to 1)
     assert x.std(axis=-1).std() > 1e-3
+
+
+def test_combine_external_alignment_and_blend():
+    """Cross-team combine guard: the RAW-signal window signature is float32/float64-robust, a
+    permuted (misaligned) order is DETECTED, and the weighted blend is row-normalized + preserves
+    argmax on identical inputs. Ensures we can't silently ensemble misaligned test rows."""
+    import combine_external as ce
+    ce.self_test()        # raises on any violation
