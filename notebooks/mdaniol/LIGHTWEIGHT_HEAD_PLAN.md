@@ -248,3 +248,29 @@ wrong test for a voter; diversity is.
 - **Traceability:** `shl-pool` log + `embeddings/dinov2_V2/` on group storage; MLflow run `vote_*`
   (bare macro_f1 = TEST lock so `leaderboard()` ranks it, + per-class + weights + split scheme) +
   `VOTING_HEAD_RESULTS.md` row + split snapshot; this pre-reg; diary conclusion on completion.
+- **OUTCOME (2026-06-28): DISABLE.** 3-way +dinov2 0.8281, +imagebind 0.8310 — both < 0.8342 (all of
+  equal/weighted/+recal). Overfit guard fired (selection-lock gap +0.0345/+0.0320 vs 2-way's +0.028);
+  rejected even on the vehicle pair (mantis already > both). E-FMDIV program closed; 2-way 0.8342 stands.
+
+### A1 — pair-separability diagnostic for the two caps (registered 2026-06-28)
+Pre-registered **before peeking**. Decides whether the hard-pair program is worth building, so we don't
+repeat the rail-expert failure. Code `modeling/pair_separability.py` (+ `hpc/pair_separability_helios.sbatch`),
+guarded by `tests/test_guardrails.py::test_pair_separability_probe_leakage_safe`. Basis: deep-research
+top-3 (har-fm + har-dl agents, 2026-06-27) — both lanes converged on "the rail/vehicle ceiling is an
+information question; measure it first."
+
+- **Question:** can a binary **linear probe** on the submission representation separate **Train↔Subway**
+  and **Car↔Bus** on HELD-OUT data? High ⇒ the separating info is in the frozen rep and the multiclass
+  head leaves it on the table ⇒ build **B1** (Fisher-axis feature) / **B2** (gated OvO specialist + Bayes
+  override, Ashqar 2006.06945). Low ⇒ the encoder collapsed the pair ⇒ DISABLE the hard-pair program.
+- **Protocol (leakage-safe, identical to submit_vote):** probe fit ONLY on FIT = train(all) +
+  validation[FIT]; scored on the locked TEST = validation[TEST] (BHT-only); per-window; deterministic
+  (LogisticRegression, standardized, class-balanced, seed 0). Never selects on TUNE/TEST. Reps: `fusion`
+  (emb⊕520, the submission rep — default), `emb` (FM only), `handcrafted` (520 only, no-FM control).
+- **Decision rule (frozen):** report held-out **balanced-accuracy + F1** per pair. **≥0.80 ⇒ SEPARABLE**
+  → proceed to B1 then B2 (gated on nested-TUNE-CV gain > fold-std). **≤0.65 ⇒ COLLAPSED** → DISABLE the
+  hard-pair program; document the ceiling as an information limit for the paper. **0.65–0.80 ⇒ MARGINAL**
+  → decide by ROI. Run `fusion` and `handcrafted` to see whether the FM adds pair-separating signal.
+- **Run:** `EMB=utica_V2 REP=fusion sbatch hpc/pair_separability_helios.sbatch` (then `REP=handcrafted`).
+- **Traceability:** MLflow run `pairsep_<emb>_<rep>` (per-pair bal-acc + F1) + `PAIR_SEPARABILITY.md`
+  + split snapshot; this pre-reg; diary conclusion on completion.

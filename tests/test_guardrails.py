@@ -355,6 +355,28 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_pair_separability_probe_leakage_safe():
+    """A1 diagnostic: the binary probe fits on FIT and scores on a DISJOINT TEST (no row overlap),
+    is deterministic, and returns a sane bal-acc in [0,1] for a separable toy pair. Guards the
+    leakage-safe contract before any cluster run."""
+    pytest.importorskip("sklearn")
+    import numpy as np
+    import pair_separability as ps
+    rng = np.random.default_rng(0)
+    # two clearly-separable classes (labels 7,8) -> probe should score high on held-out
+    n = 300
+    Xfit = np.concatenate([rng.standard_normal((n, 8)), rng.standard_normal((n, 8)) + 4.0])
+    yfit = np.array([7] * n + [8] * n)
+    Xtest = np.concatenate([rng.standard_normal((80, 8)), rng.standard_normal((80, 8)) + 4.0])
+    ytest = np.array([7] * 80 + [8] * 80)
+    r1 = ps.probe_pair(Xfit, yfit, Xtest, ytest, 7, 8)
+    r2 = ps.probe_pair(Xfit, yfit, Xtest, ytest, 7, 8)
+    assert 0.0 <= r1["bal_acc"] <= 1.0 and r1["bal_acc"] > 0.9        # separable -> high
+    assert r1 == r2                                                    # deterministic
+    assert r1["n_fit"] == 2 * n and r1["n_test"] == 160               # only the pair's rows used
+    assert ps.verdict(0.95).startswith("SEPARABLE") and ps.verdict(0.5).startswith("COLLAPSED")
+
+
 def test_pool_per_channel_equals_channel_mean(tmp_path):
     """pool_per_channel mean-pools a per-channel (n,C,d) embedding dir into a (n,d) voter dir, and
     that MUST equal the channel-mean exactly (it reproduces a non-per-channel extraction, so the

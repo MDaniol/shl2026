@@ -41,7 +41,7 @@ CPU work = Ares / Helios-CPU (x86). Helpers: `env_mdaniol.sh` (arch-aware), `lin
 | `shl-probe` | `probe_fusion.sbatch` / `_ares` | `probe_fusion.py` | Helios CPU | ✅ done — **utica_V2 = 0.8157** (new best base) | `BAKEOFF_SPLIT.md` |
 | `shl-vote` | `voting_head.sbatch` | `voting_head.py` | Helios CPU | ✅ done — E-VOTE-01 concluded: soft-vote top-2 = **0.8342** (KEEP, +0.0129 vs best single) | `VOTING_HEAD_RESULTS.md` |
 | `shl-pool` | `pool_emb_helios.sbatch` | `pool_per_channel.py` | Helios CPU | 🔨 ready — mean-pool `dinov2_V2_pc`→`dinov2_V2` voter (number-identical to non-pc extraction; gated) | `embeddings/dinov2_V2/` + log |
-| `shl-vote` (E-FMDIV-VOTE) | `voting_head.sbatch` (`EMBS=…,dinov2_V2`) | `voting_head.py` | Helios CPU | 🔨 **registered 2026-06-27** — 3-way vote +`dinov2_V2` (then 4-way +`imagebind_V0`, 5-way +`ast_V2`); KEEP iff **TEST>0.8342** | `VOTING_HEAD_RESULTS.md` |
+| `shl-vote` (E-FMDIV-VOTE) | `voting_head.sbatch` (`EMBS=…,dinov2_V2`) | `voting_head.py` | Helios CPU | ❌ **CONCLUDED 2026-06-28 DISABLE** — 3-way +`dinov2` 0.8281, +`imagebind` 0.8310, both < **0.8342** (diversity dilutes; overfit via selection-lock gap) | `VOTING_HEAD_RESULTS.md` |
 | `shl-extract-pc` | `extract_per_channel_helios.sbatch` (array) | `extract_embeddings.py --per-channel` | **Helios GH200** | 🔨 ready — per-channel V1 (utica+mantisv2) for the cross-channel head | `embeddings/<fm>_V1_pc/` (n,C,d) + MLflow |
 | `shl-head` | `head_xchannel_helios.sbatch` | `head_xchannel.py` (MLflow) | **Helios GH200** | E-HEAD-01 ✅; **E-FMDIV-HEAD**: `dinov2_V2_pc` ✅ done (best head TEST 0.797 ≪ 0.834, SE KEEP=False); `ast_V2_pc` ⏳ (after AST extract) | `HEAD_RESULTS_<tag>.md` |
 | `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena/Helios GPU | 🔨 ready | `embeddings/..._tta*/` |
@@ -234,6 +234,25 @@ sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch    # -> BAKEOFF_SPLIT.md (
   before resubmitting an optimized run. Clean re-run = single DINO/AST pair + heads (`afterok`) + a vote
   re-run (the first v3 run predated `--save-proba`, so `preds_test_v3_vote.npy` was missing). **E-FMDIV
   results pending** (extractions+heads still on GH200) — conclusion entry to follow.
+- **2026-06-28** — **E-FMDIV CONCLUDED → DISABLE all spectrogram/diversity voters; the 2-way
+  utica_V2+mantisv2_V1 vote (0.8342) remains the submission.** Both lanes failed the frozen gate:
+  - **Head lane (E-FMDIV-HEAD):** DINOv2 cross-channel head best = `concat` **TEST 0.797 ≪ 0.834**;
+    `se` KEEP=False (no cross-channel gain), consistent with E-HEAD-01. (AST head pending but same
+    family/region — expected to match.)
+  - **Vote lane (E-FMDIV-VOTE):** adding a 3rd voter **lowers** the vote on TEST — `+dinov2` 0.8281,
+    `+imagebind` 0.8310, **both < 0.8342** (all of equal/weighted/+recal). Mechanism = the pre-registered
+    overfit guard firing: weak voters (dinov2 0.8054, imagebind 0.8037 standalone) inflate the
+    **selection-lock gap** (+0.0345/+0.0320 vs the 2-way's +0.028), so TUNE rises but TEST falls. The
+    diversity hypothesis is rejected **even on its target** — `mantisv2` already beats both on vehicle
+    (Bu 0.84 vs dinov2 0.78 / imagebind 0.79). A clean publishable null: cross-domain frozen voters add
+    noise, not orthogonal signal, on this 9-ch IMU task. **E-FMDIV program closed.**
+  - **Rigor note (ties to #18):** `utica_V2` shifted 0.8213→0.8229 between the Jun-26 2-way and the
+    Jun-27 N-way runs — the LightGBM determinism fix landing. The 0.8342 bar predates the fix, so a
+    clean **2-way re-confirm under current deterministic code** is queued to lock the true champion (the
+    N-way verdict is unaffected — they're ~0.006–0.008 below either way).
+  - **Next:** champion submission regenerated deterministically as the fallback (`v3` = utica+mantis);
+    pivoting to the deep-research **top-3**, starting with **A1 pair-separability diagnostic** (is the
+    Train↔Subway / Car↔Bus ceiling beatable at all in the frozen rep, before investing in B1/B2).
 
 ## Runbook — soft-voting head (job `shl-vote`, registered 2026-06-26) [shipped 2026-06-26 as v3]
 Goal: does a calibrated late-fusion vote of the bake-off top-2 beat the best single FM on the
