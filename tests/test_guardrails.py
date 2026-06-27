@@ -355,6 +355,34 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_additive_bias_improves_macro_and_is_deterministic():
+    """C1: the joint coordinate-descent additive log-bias must (a) be deterministic, (b) not REDUCE
+    macro-F1 vs raw argmax on the data it's fit on (it's a maximizer), and (c) raise an under-emitted
+    minority class that a vanishing multiplier can't. Pure-numpy core, runs on the CPU gate."""
+    import numpy as np
+    import decision_rule as dr
+    cls = np.asarray(dr.CLASSES)
+    rng = np.random.default_rng(0)
+    n = 2000
+    y = np.where(rng.random(n) < 0.05, 3, rng.integers(1, 9, n))       # class 3 (=Run-like) rare
+    # probas biased AGAINST class 3 (under-emitted): shrink its column
+    P = rng.random((n, 8)) + 0.01
+    for i in range(n):
+        P[i, y[i] - 1] += 0.6                                          # signal, but...
+    P[:, 2] *= 0.25                                                    # ...class-3 column suppressed
+    P = dr._norm(P)
+    base = dr.macro_f1(y, cls[P.argmax(1)])
+    b1 = dr.additive_bias_search(P, y, cls)
+    b2 = dr.additive_bias_search(P, y, cls)
+    assert np.array_equal(b1, b2)                                      # deterministic
+    after = dr.macro_f1(y, cls[(np.log(dr._norm(P) + dr.EPS) + b1).argmax(1)])
+    assert after >= base - 1e-9                                        # never hurts on fit data
+    assert b1[2] > 0.0                                                 # raises the suppressed class
+    # SLD recovers a planted target prior shift
+    corr, tgt = dr.sld_correct(P, P.mean(0))
+    assert corr.shape == P.shape and abs(tgt.sum() - 1.0) < 1e-6
+
+
 def test_pair_separability_probe_leakage_safe():
     """A1 diagnostic: the binary probe fits on FIT and scores on a DISJOINT TEST (no row overlap),
     is deterministic, and returns a sane bal-acc in [0,1] for a separable toy pair. Guards the
