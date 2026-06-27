@@ -202,6 +202,9 @@ def main() -> int:
 
         reps = {}
         reps["emb"] = fit_cal_eval("lgbm(emb)", *slices(Etr, Eva))
+        assert len(Etr) == len(Ftr) and len(Eva) == len(Fva), (
+            f"emb/feat ROW mismatch ({args.emb}): train emb {len(Etr)} vs feat {len(Ftr)}, "
+            f"val emb {len(Eva)} vs feat {len(Fva)} — stale/partial extraction? (row alignment)")
         EFtr = np.concatenate([Etr, Ftr], 1); EFva = np.concatenate([Eva, Fva], 1)
         reps["fusion"] = fit_cal_eval("lgbm(emb+handcrafted)", *slices(EFtr, EFva))
         reps["handcrafted"] = fit_cal_eval("lgbm(handcrafted-only)", *slices(Ftr, Fva))

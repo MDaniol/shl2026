@@ -45,6 +45,9 @@ def fused_probas(emb, emb_root, feat_dir, ytr, yva, Ftr, Fva, fm, tm, sm):
     probas on TUNE and TEST plus its locked TEST report (reproduces BAKEOFF_SPLIT)."""
     Etr = load_emb(emb_root / emb, "train")
     Eva = load_emb(emb_root / emb, "validation")
+    assert len(Etr) == len(Ftr) and len(Eva) == len(Fva), (
+        f"emb/feat ROW mismatch ({emb}): train {len(Etr)} vs {len(Ftr)}, val {len(Eva)} vs "
+        f"{len(Fva)} — stale/partial extraction? (row alignment)")
     EFtr = np.concatenate([Etr, Ftr], 1)
     EFva = np.concatenate([Eva, Fva], 1)
     Xfit = np.concatenate([EFtr, EFva[fm]]); yfit = np.concatenate([ytr, yva[fm]])

@@ -13,7 +13,7 @@
 #   (adjust account/partition for your CPU grant, or: sbatch -A plgshl26-cpu -p plgrid ...)
 #
 #SBATCH --job-name=shl-probe
-#SBATCH --array=0-10
+#SBATCH --array=0-13
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=64G
 #SBATCH --time=12:00:00         # fusion head (lgbm on emb⊕520, ~800k rows) — heavy + deterministic (~3-4x)
@@ -34,7 +34,8 @@ export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-file://$PLG_GROUPS_STORAGE/pl
 EMBS=(mantisv2_V0 mantisv2_V1 mantisv2_V2 \
       mantis8m_V0 mantis8m_V1 mantis8m_V2 \
       utica_V0 utica_V1 utica_V2 \
-      moment-small_V1 moment-small_V2)
+      moment-small_V1 moment-small_V2 \
+      ast_V2 dinov2_V2 imagebind_V0)        # E-FMDIV diversity voters (skip-if-missing until staged)
 E="${EMBS[$SLURM_ARRAY_TASK_ID]}"
 
 SCHEME="temporal"; SPLIT_NAME="val_split_temporal.npy"
