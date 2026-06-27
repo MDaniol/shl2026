@@ -201,8 +201,19 @@ def pack_ast(lib, variant: str = "V2"):
     return _stack(lib, names), names
 
 
-PACKERS = {"moment": pack_moment, "mantis": pack_mantis,
-           "unimts": pack_unimts, "limu": pack_limu, "ast": pack_ast}
+def pack_imagebind(lib, variant: str = "V0"):
+    """ImageBind native IMU encoder (arXiv:2305.05665): 6-ch acc+gyr, interp 500->2000 (its 5 s /
+    2000-sample contract), per-channel **MEAN-SUBTRACTION** — ImageBind's training-time IMU
+    preprocessing is zero-mean per axis, NOT z-norm (amplitude is signal for transport). No
+    magnetometer (ImageBind IMU = acc+gyr only). Returns (n, 6, 2000)."""
+    names = VARIANTS_UNIMTS["V0"]                      # Acc_xyz + Gyr_xyz, no mag
+    x = _interp_to(_stack(lib, names), 2000)           # (n, 6, 2000)
+    x = x - x.mean(axis=-1, keepdims=True)             # per-channel mean-subtraction (per window)
+    return x.astype(np.float32), names
+
+
+PACKERS = {"moment": pack_moment, "mantis": pack_mantis, "unimts": pack_unimts,
+           "limu": pack_limu, "ast": pack_ast, "imagebind": pack_imagebind}
 
 
 # ---------------------------------------------------------------------------

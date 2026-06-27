@@ -149,6 +149,26 @@ def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float
             return out
         return embed, fi.pack_ast
 
+    if model == "imagebind":
+        # Meta ImageBind's NATIVE frozen IMU encoder (arXiv:2305.05665) -> 1024-d joint-space vector.
+        # Trained on Ego4D head-mounted Aria IMU -> domain gap to phone; value = decorrelated errors.
+        from imagebind.models import imagebind_model
+        from imagebind.models.imagebind_model import ModalityType
+        net = imagebind_model.imagebind_huge(pretrained=True).to(device).eval()
+
+        def embed(x):                                                   # x: (n, 6, 2000) acc+gyr, mean-subtracted
+            outs = []
+            with torch.no_grad():
+                for i in range(0, len(x), tf_batch):
+                    xb = torch.tensor(x[i:i + tf_batch], dtype=torch.float32).to(device)
+                    e = net({ModalityType.IMU: xb})[ModalityType.IMU]   # (b, 1024)
+                    outs.append(e.cpu().numpy()); del xb, e
+            empty_cache(device)
+            out = np.concatenate(outs, 0).astype(np.float32)
+            np.nan_to_num(out, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
+            return out
+        return embed, fi.pack_imagebind
+
     if model == "ast":
         # frozen Audio Spectrogram Transformer over per-channel IMU log-spectrograms -> 768-d,
         # mean-pooled over channels. A representation ORTHOGONAL to the temporal FMs (diversity voter).

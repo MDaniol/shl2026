@@ -326,3 +326,22 @@ def test_vit_spectrogram_image_shape_and_norm():
     de = a * np.array([0.229, 0.224, 0.225])[None, :, None, None] + np.array([0.485, 0.456, 0.406])[None, :, None, None]
     assert np.allclose(de[:, 0], de[:, 1], atol=1e-4) and np.allclose(de[:, 1], de[:, 2], atol=1e-4)
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
+
+
+def test_pack_imagebind_contract():
+    """ImageBind IMU packer: 6-ch acc+gyr (NO magnetometer), interp to 2000 samples, per-channel
+    MEAN-SUBTRACTION (NOT z-norm — ImageBind's training contract; har-fm-scientist fix). Pure-numpy
+    so it runs on the CPU gate too."""
+    import numpy as np, sys
+    sys.path.insert(0, str(_MODELING.parent / "feature_extraction"))
+    import fm_input as fi
+    rng = np.random.default_rng(0)
+    acc = rng.standard_normal((6, 3, 500)).astype(np.float32); acc[:, 2] += 9.8
+    gyr = 0.1 * rng.standard_normal((6, 3, 500)).astype(np.float32)
+    mag = 40 + rng.standard_normal((6, 3, 500)).astype(np.float32)
+    x, names = fi.pack_imagebind(fi.build_channel_library(acc, gyr, mag), "V0")
+    assert x.shape == (6, 6, 2000)
+    assert not any("Mag" in n for n in names)                 # acc+gyr only
+    assert np.abs(x.mean(axis=-1)).max() < 1e-4               # per-channel zero-mean
+    # NOT z-normed: per-channel std must vary (not forced to 1)
+    assert x.std(axis=-1).std() > 1e-3
