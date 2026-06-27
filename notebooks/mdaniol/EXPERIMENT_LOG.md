@@ -90,6 +90,19 @@ for the ViT branch; sweep `--vit-layer-frac {0.45,0.55,0.65}` (TiViT's win = 0.4
 `[B,6,2000]` acc+gyr, interp 500→2000, **per-channel mean-SUBTRACTION only (NOT z-norm)** → 1024-d;
 PRIMUS = 6-ch acc+gyr, 5 s, 50 Hz (poly-resample 100→50 → 250), **verify channel order + input norm from
 the repo before building**. Both Ego4D head-mounted → validate standalone (per-class Run/vehicles) first.
+
+**E-FMDIV 2nd validation pass (3 agents, 2026-06-27) → CLEARED.** After building ImageBind, re-audited:
+har-fm-scientist (FM-usage: NO must-fix, all branches API-correct), general-purpose (ImageBind Python
+API CONFIRMED vs facebookresearch/ImageBind source: `imagebind_huge`, `ModalityType.IMU` dict in/out,
+`(B,6,2000)`, 1024-d **L2-normed** output — all correct), har-dl-scientist (5/6 prior fixes correct;
+**MUST-FIX-1** = imagebind sbatch must ensure scipy/transformers before the gate → APPLIED c47f1f1).
+Nice-to-haves applied (docstring std-0.5; `torch.from_numpy`). **AST/DINOv2/ImageBind are now
+validation-cleared and safe to run** (smoke-first). ⚠️ **LICENSE:** ImageBind is **CC-BY-NC 4.0** →
+derived embeddings inherit the non-commercial restriction → the Zenodo/DOI public artifact must
+declare it (temporal FMs + AST/DINOv2 don't carry NC; decide whether ImageBind features go in the open
+release). **PRIMUS: GATED** — exact contract lives in the repo's `lib/` Lightning modules (not the
+README), needs a source-dive + Lightning/CLIP deps; same head-mounted domain axis as ImageBind → build
+only if ImageBind shows the native-IMU axis helps the vote.
 | **AST spectrogram voter E-AST-01** (`extract_embeddings.py --model ast`, job `shl-extract-ast`) | frozen AST ViT over per-channel IMU log-spectrograms (0–50 Hz band, NOT the audio mel front-end) → 768-d, mean over channels | **BUILT + pre-registered** 2026-06-27; spectrogram diff-tested; SMOKE first, then probe + add to vote |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
