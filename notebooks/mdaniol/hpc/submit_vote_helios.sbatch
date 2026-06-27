@@ -46,5 +46,6 @@ done
 
 echo "[$(date)] building VOTE submission ($VERSION, embs=$EMBS) on $(hostname)"
 python $M/submit_vote.py --version "$VERSION" --embs "$EMBS" --heldout "$HELDOUT" \
-    --feat-dir "$FEAT" --emb-root "$PROJECT_DIR/embeddings"
+    --feat-dir "$FEAT" --emb-root "$PROJECT_DIR/embeddings" \
+    --save-proba "notebooks/mdaniol/preds_test_${VERSION}_vote.npy"   # (92726,8) for cross-team combine
 echo "[$(date)] done. Vote submission + SUBMISSIONS.md + MLflow written; archive the .txt + git add/commit/push."
