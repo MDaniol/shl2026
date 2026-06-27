@@ -353,3 +353,20 @@ def test_combine_external_alignment_and_blend():
     argmax on identical inputs. Ensures we can't silently ensemble misaligned test rows."""
     import combine_external as ce
     ce.self_test()        # raises on any violation
+
+
+def test_batched_per_channel_equals_loop():
+    """Perf opt must be NUMBER-IDENTICAL: the AST/DINOv2 batched path reshapes a single
+    forward over (b*C) channel-rows to (b,C,d) — this must equal the per-channel C-loop
+    (embed_per_channel stacks per-channel). Guards against a reshape/transpose bug that would
+    silently scramble channels. (Frozen LayerNorm models are per-sample, so batching can't change
+    the forward; only the reshape layout is at risk — tested here with a row-wise fake forward.)"""
+    import numpy as np
+    b, C, T, d = 4, 5, 500, 7
+    X = np.random.default_rng(0).standard_normal((b, C, T))
+    rowfwd = lambda s: s[:, :d] + s.mean(1, keepdims=True)        # (m,T)->(m,d), strictly row-wise
+    batched = rowfwd(X.reshape(b * C, T)).reshape(b, C, d)        # the optimized path's layout
+    loop = np.stack([rowfwd(X[:, c, :]) for c in range(C)], axis=1)  # embed_per_channel layout
+    assert batched.shape == (b, C, d) and np.allclose(batched, loop)
+    # and mean-over-C (pooled path) equals the loop's mean
+    assert np.allclose(batched.mean(1), loop.mean(1))

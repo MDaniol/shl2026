@@ -119,9 +119,13 @@ def imu_spectrogram_image(x, size: int, mean, std, fs: int = 100):
 # patch-pooling result doesn't depend on registers.
 VIT_IDS = {"dinov2": "facebook/dinov2-base",
            "dinov2-large": "facebook/dinov2-large"}
+# models whose embed() batches all (b*C) channel-spectrograms in ONE forward and can return per-channel
+# (n,C,d) natively — so main must NOT wrap them in the slow embed_per_channel C-loop (5x small GPU calls).
+NATIVE_PC_MODELS = {"ast"} | set(VIT_IDS)
 
 
-def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float = 0.65):
+def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float = 0.65,
+                   per_channel: bool = False):
     if model in VIT_IDS:
         # frozen vision ViT over per-channel IMU spectrogram-IMAGES; use an INTERMEDIATE layer
         # (TiViT: ~40-70% depth beats the final block); mean-pool tokens, then mean over channels.
@@ -144,8 +148,9 @@ def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float
                     xb = x[i:i + tf_batch]; b, C, T = xb.shape
                     img = imu_spectrogram_image(xb.reshape(b * C, T), size, mean, std).to(device)
                     hs = net(pixel_values=img).hidden_states[L]          # (b*C, tokens, d)
-                    emb = hs[:, n_prefix:].mean(1).reshape(b, C, -1).mean(1)  # patch tokens, mean channels
-                    outs.append(emb.cpu().numpy()); del xb, img, hs, emb
+                    pooled = hs[:, n_prefix:].mean(1).reshape(b, C, -1)  # patch-token pool -> (b, C, d)
+                    emb = pooled if per_channel else pooled.mean(1)      # keep channels, or mean-pool
+                    outs.append(emb.cpu().numpy()); del xb, img, hs, pooled, emb
             empty_cache(device)
             out = np.concatenate(outs, 0).astype(np.float32)
             np.nan_to_num(out, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
@@ -187,8 +192,9 @@ def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float
                     b, C, T = xb.shape
                     spec = imu_log_spectrogram(xb.reshape(b * C, T), n_mels, n_frames).to(device)
                     e = m(input_values=spec).pooler_output               # (b*C, 768)
-                    outs.append(e.reshape(b, C, -1).mean(1).cpu().numpy())  # mean over channels
-                    del xb, spec, e
+                    pe = e.reshape(b, C, -1)                             # (b, C, 768)
+                    outs.append((pe if per_channel else pe.mean(1)).cpu().numpy())
+                    del xb, spec, e, pe
             empty_cache(device)
             out = np.concatenate(outs, 0).astype(np.float32)
             np.nan_to_num(out, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
@@ -292,7 +298,7 @@ def main() -> int:
     if args.prefetch:
         dev = "cpu"   # download only; avoid CUDA init so it runs anywhere
         print(f"[prefetch] downloading {args.model} weights -> HF cache ...", flush=True)
-        build_embedder(args.model, dev, args.tf_batch, args.vit_layer_frac)
+        build_embedder(args.model, dev, args.tf_batch, args.vit_layer_frac, args.per_channel)
         print(f"[prefetch] {args.model} cached. Safe to run the parallel array now.", flush=True)
         return 0
 
@@ -300,7 +306,8 @@ def main() -> int:
         ap.error("--tta-k requires --rotation so3|gravity_aware")
     if args.per_channel and args.tta_k:
         ap.error("--per-channel and --tta-k are mutually exclusive (combine later if needed)")
-    embed, packer = build_embedder(args.model, args.device, args.tf_batch, args.vit_layer_frac)
+    embed, packer = build_embedder(args.model, args.device, args.tf_batch, args.vit_layer_frac,
+                                   args.per_channel)
     tag = (f"{args.model}_{args.variant}"
            + ("_pc" if args.per_channel else "")
            + (f"_tta{args.tta_k}{args.rotation}" if args.tta_k else ""))
@@ -343,7 +350,11 @@ def main() -> int:
                 lib = raw_lib(a, g, m) if args.variant == "V0" \
                     else fi.build_channel_library(a, g, m)
                 X, _ = packer(lib, args.variant)
-                return embed_per_channel(X, embed) if args.per_channel else embed(X)
+                # AST/DINOv2 batch all channels in one forward (NATIVE_PC) -> call embed directly;
+                # only the generic (channel-collapsing) FMs need the slow per-channel C-loop wrapper.
+                if args.per_channel and args.model not in NATIVE_PC_MODELS:
+                    return embed_per_channel(X, embed)
+                return embed(X)
 
             if args.tta_k:                       # mean embedding over K random reorientations
                 stack = None
