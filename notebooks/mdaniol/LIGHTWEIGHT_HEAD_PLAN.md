@@ -210,3 +210,41 @@ per-FM `HEAD_RESULTS_<tag>.md`). Research basis: `VISION_SOUND_FM_RESEARCH.md` (
 - **Run:** `EMB_PC=ast_V2_pc sbatch …/head_xchannel_helios.sbatch` ; `EMB_PC=dinov2_V2_pc sbatch …`.
 - **Traceability:** MLflow run `head_<emb_pc>` (bare macro_f1 + per-head + per-class + ECE) +
   `HEAD_RESULTS_<tag>.md` + split snapshot; pre-reg here; diary conclusion on completion.
+
+### E-FMDIV-VOTE — fold the spectrogram-FM(s) into the calibrated vote as diversity voters (registered 2026-06-27)
+Pre-registered **before peeking at the N-way TEST**. Reuses the E-VOTE-01 machinery unchanged
+(`voting_head.py` / `hpc/voting_head.sbatch`); the only new artifact is the **mean-pooled voter dir**
+built by `hpc/pool_emb_helios.sbatch` → `pool_per_channel.py`. Motivated by the E-FMDIV-HEAD result:
+DINOv2 **fails the bar standalone** (best cross-channel head TEST 0.797 ≪ 0.834) BUT its per-class
+profile is relatively strong on the **vehicle pair** (Car 0.92 / Bus 0.79, best seed) — a cross-domain
+(vision-ViT) error pattern that *may* decorrelate from the temporal FMs. Standalone strength is the
+wrong test for a voter; diversity is.
+
+- **Inputs:** `dinov2_V2` — the channel-mean of `dinov2_V2_pc`, which is **number-identical** to a
+  non-per-channel extraction (`emb = pooled.mean(1)`), locked by
+  `tests/test_guardrails.py::test_pool_per_channel_equals_channel_mean`. Fused as `emb ⊕ 520
+  handcrafted → LightGBM`, the **same recipe** as the utica_V2 / mantisv2_V1 voters (apples-to-apples).
+- **Hypothesis (H-div):** adding the decorrelated cross-domain DINOv2 fusion voter to the
+  utica_V2 + mantisv2_V1 calibrated vote lifts macro-F1 — concentrated on **Car/Bus**, where DINOv2 is
+  relatively strong — without hurting Run or the rail pair.
+- **Protocol (identical to E-VOTE-01):** per FM, fit `emb⊕520→LGBM` on FIT (User-1 + validation[FIT]),
+  per-class calibrate on TUNE; convex vote **weights + per-class recal selected on TUNE**; **lock TEST
+  once** (BHT-only). Report macro-F1 on TUNE+TEST, **per-class F1**, ECE, and the **selection-lock gap**.
+  Deterministic (`deterministic=True, force_col_wise=True`).
+- **Decision rule (frozen):** KEEP the 3-way vote into the submission **iff its TEST macro > 0.8342**
+  (the E-VOTE-01 bar) — measured on TEST, never selected on TUNE. Secondary (does not gate shipping):
+  record the **Car/Bus per-class delta** vs the 2-way vote as a diversity finding — a flat macro with a
+  real pair lift is a clean publishable ablation, not a submission. **Overfit guard:** more voters = more
+  TUNE-selected weights → if the 3-way selection-lock gap inflates materially vs the 2-way (≈0.027),
+  treat the TUNE gain as overfit and DISABLE regardless of TUNE.
+- **Honest prior:** the voter is mostly the 520 handcrafted features + a weak DINOv2 add-on, so expect
+  **≈0.834 ± a little**; marginal-to-neutral is the likely outcome, a clear lift would be a pleasant
+  surprise. A null result still answers the E-FMDIV diversity question.
+- **Pre-registered variants (same gate):** **4-way** `+imagebind_V0` (already extracted) and **5-way**
+  `+ast_V2` (after the AST extraction + its own `pool_emb_helios` finish) — to test all diversity voters
+  jointly, not just DINOv2.
+- **Run:** `POOL=$(sbatch --parsable hpc/pool_emb_helios.sbatch)` ;
+  `EMBS=utica_V2,mantisv2_V1,dinov2_V2 sbatch --dependency=afterok:$POOL hpc/voting_head.sbatch`.
+- **Traceability:** `shl-pool` log + `embeddings/dinov2_V2/` on group storage; MLflow run `vote_*`
+  (bare macro_f1 = TEST lock so `leaderboard()` ranks it, + per-class + weights + split scheme) +
+  `VOTING_HEAD_RESULTS.md` row + split snapshot; this pre-reg; diary conclusion on completion.
