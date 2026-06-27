@@ -11,6 +11,7 @@ prevents leakage L1.2) and the team `shl2026` package rather than hand-rolled co
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -290,6 +291,32 @@ def test_vote_model_reuse_is_lossless():
     Pte_reload = np.stack([aligned_proba(c, Xte, w) for c, w in saved], 0)         # load-path vote
     got = cls[(np.einsum("knc,k->nc", Pte_reload, vw) * recal).argmax(1)]
     assert np.array_equal(ref, got), "reused models do not reproduce the vote prediction"
+
+
+def test_spectrogram_thread_count_identical():
+    """The extraction speed-up sets torch.set_num_threads(allocated_cores) to parallelize the
+    spectrogram interpolate+normalize across CPU cores. That MUST be bit-identical to the
+    single-threaded result (no accuracy change) — interpolate is elementwise and torch's CPU
+    mean/std reduction is deterministic. Lock it: same input, different thread counts -> equal."""
+    torch = pytest.importorskip("torch")
+    import numpy as np
+    import extract_embeddings as ee
+    rng = np.random.default_rng(0)
+    x = np.sin(2 * np.pi * 3 * (np.arange(500) / 100))[None].repeat(40, 0) \
+        + 0.1 * rng.standard_normal((40, 500))
+    prev = torch.get_num_threads()
+    try:
+        torch.set_num_threads(1)
+        ref_ast = ee.imu_log_spectrogram(x, n_mels=128, n_frames=1024)
+        ref_img = ee.imu_spectrogram_image(x, 224, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        torch.set_num_threads(max(2, min(8, (os.cpu_count() or 2))))
+        assert torch.equal(ref_ast, ee.imu_log_spectrogram(x, n_mels=128, n_frames=1024)), \
+            "AST spectrogram changed with thread count — NOT number-identical"
+        assert torch.equal(ref_img, ee.imu_spectrogram_image(
+            x, 224, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])), \
+            "ViT spectrogram-image changed with thread count — NOT number-identical"
+    finally:
+        torch.set_num_threads(prev)
 
 
 def test_ast_spectrogram_shape_and_norm():

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import os
 import sys
 import time
 from pathlib import Path
@@ -294,6 +295,16 @@ def main() -> int:
     # END of main, after extraction). GUARDRAILS §4 "determinism or it didn't happen".
     from shl2026.tracking.run_context import set_global_seeds
     set_global_seeds(args.seed)
+    # Use ALL allocated CPU cores for torch's intra-op tensor work. The AST/ViT spectrogram
+    # helper is dominated (~94%) by the CPU interpolate→AST-grid + per-spectrogram normalize on a
+    # large (b*C, n_mels, n_frames) tensor; SLURM/OMP default leaves torch ~single-threaded, which is
+    # why extraction was CPU-bound at ~8% core-eff. Threading these ops is BIT-IDENTICAL across thread
+    # counts (interpolate is elementwise; torch CPU mean/std reduction is deterministic) — verified and
+    # locked by tests/test_guardrails.py::test_spectrogram_thread_count_identical. No numbers change.
+    _ncores = int(os.environ.get("SLURM_CPUS_PER_TASK") or os.cpu_count() or 1)
+    torch.set_num_threads(max(1, _ncores))
+    print(f"[threads] torch intra-op threads = {torch.get_num_threads()} (allocated cores={_ncores})",
+          flush=True)
 
     if args.prefetch:
         dev = "cpu"   # download only; avoid CUDA init so it runs anywhere

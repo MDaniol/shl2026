@@ -28,6 +28,10 @@ export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-file://$GROUP/mlruns-helios}"
 LIMIT_FLAG=""; [ -n "${LIMIT:-}" ] && LIMIT_FLAG="--limit $LIMIT"
 
 source "$PROJECT_DIR/notebooks/mdaniol/hpc/env_mdaniol.sh"   # aarch64 venv (torch)
+# Use all allocated cores for CPU tensor/FFT work (spectrogram interpolate+normalize dominate;
+# bit-identical across thread counts — see extract_embeddings.py + test_spectrogram_thread_count_identical).
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-16}"
+export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-16}"
 cd "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs "$EMB"
 # transformers (ASTModel) + scipy must be present in the aarch64 env
