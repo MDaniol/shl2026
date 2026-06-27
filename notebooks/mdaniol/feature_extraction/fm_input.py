@@ -83,6 +83,7 @@ VARIANTS: dict[str, list[str]] = {
     "V1": ["BodyAcc_x", "BodyAcc_y", "BodyAcc_z", "Gyr_x", "Gyr_y", "Gyr_z",
            "Mag_x", "Mag_y", "Mag_z"],
     "V2": ["AccMag", "GyrMag", "MagMag", "BodyAccMag", "AccAngle"],
+    "Vmag3": ["AccMag", "GyrMag", "MagMag"],   # 3 core sensor magnitudes — cheap per-channel ViT/AST voter
     "V3": ["BodyAcc_x", "BodyAcc_y", "BodyAcc_z", "Gyr_x", "Gyr_y", "Gyr_z",
            "Mag_x", "Mag_y", "Mag_z", "AccMag", "GyrMag", "MagMag",
            "BodyAccMag", "AccJerkMag", "GyrJerkMag", "MagRateMag"],

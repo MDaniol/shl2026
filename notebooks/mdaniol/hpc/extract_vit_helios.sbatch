@@ -11,14 +11,15 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --time=08:00:00
+#SBATCH --time=16:00:00
 #SBATCH --output=notebooks/mdaniol/modeling/logs/extractvit_%j.out
 #SBATCH --partition=plgrid-gpu-gh200
 #SBATCH --account=plgshl26-gpu-gh200
 
 set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
-MODEL="${MODEL:-dinov2}"; VARIANT="${VARIANT:-V2}"; LFRAC="${LFRAC:-0.65}"
+MODEL="${MODEL:-dinov2}"; VARIANT="${VARIANT:-V2}"; LFRAC="${LFRAC:-0.65}"   # V2 = 5 invariant magnitudes
+PC="${PC:---per-channel}"   # keep per-channel (n,C,d) -> cross-channel SE head (head_xchannel); set PC="" to mean-pool
 GROUP="$PLG_GROUPS_STORAGE/plggmhealth/shl2026"
 DATA="$PLG_GROUPS_STORAGE/plggmhealth/dataset_parquet"
 EMB="${EMBDIR:-$GROUP/embeddings}"
@@ -34,6 +35,6 @@ python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >
 echo "[$(date)] HELIOS GH200 ViT extract $MODEL variant=$VARIANT layer-frac=$LFRAC limit=${LIMIT:-all} -> $EMB/${MODEL}_${VARIANT}"
 nvidia-smi --query-gpu=name --format=csv,noheader || true
 python notebooks/mdaniol/modeling/extract_embeddings.py --model "$MODEL" --variant "$VARIANT" \
-    --vit-layer-frac "$LFRAC" --data-dir "$DATA" --emb-dir "$EMB" --device cuda \
-    --chunk-size "${CHUNK:-2000}" --tf-batch "${TFB:-64}" $LIMIT_FLAG
+    --vit-layer-frac "$LFRAC" --data-dir "$DATA" --emb-dir "$EMB" --device cuda $PC \
+    --chunk-size "${CHUNK:-2000}" --tf-batch "${TFB:-128}" $LIMIT_FLAG
 echo "[$(date)] done ${MODEL}_${VARIANT}. Next (CPU): probe_fusion_ares (add to EMBS) -> add to vote."
