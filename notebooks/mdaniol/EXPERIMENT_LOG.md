@@ -39,12 +39,12 @@ CPU work = Ares / Helios-CPU (x86). Helpers: `env_mdaniol.sh` (arch-aware), `lin
 | `shl-extract-all` | `extract_all_helios.sbatch` (array) | `extract_embeddings.py` (MLflow-logged) | **Helios GH200** | ✅ done — all 11 FM sets extracted (~1800 win/s) | `embeddings/<fm>_<var>/` + MLflow |
 | `shl-extract` | `extract_fm.sbatch` / `extract_fm_helios.sbatch` | `extract_embeddings.py` | Athena / Helios GPU | (per-model variant) | `embeddings/<fm>_<var>/` |
 | `shl-probe` | `probe_fusion.sbatch` / `_ares` | `probe_fusion.py` | Helios CPU | ✅ done — **utica_V2 = 0.8157** (new best base) | `BAKEOFF_SPLIT.md` |
-| `shl-vote` | `voting_head.sbatch` | `voting_head.py` | Helios CPU | 🔨 ready — soft-vote top-2 (utica_V2+mantisv2_V1) | `VOTING_HEAD_RESULTS.md` |
+| `shl-vote` | `voting_head.sbatch` | `voting_head.py` | Helios CPU | ✅ done — E-VOTE-01 concluded: soft-vote top-2 = **0.8342** (KEEP, +0.0129 vs best single) | `VOTING_HEAD_RESULTS.md` |
 | `shl-extract-pc` | `extract_per_channel_helios.sbatch` (array) | `extract_embeddings.py --per-channel` | **Helios GH200** | 🔨 ready — per-channel V1 (utica+mantisv2) for the cross-channel head | `embeddings/<fm>_V1_pc/` (n,C,d) + MLflow |
 | `shl-head` | `head_xchannel_helios.sbatch` | `head_xchannel.py` (MLflow) | **Helios GH200** | 🔨 ready — E-HEAD-01 cross-channel heads (after `_pc`) | `HEAD_RESULTS.md` |
 | `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena/Helios GPU | 🔨 ready | `embeddings/..._tta*/` |
 | `shl-submit` | `submit_helios.sbatch` / `submit.sbatch` | `submit_fusion.py` (MLflow-tracked) | Helios CPU / Athena | ✅ v1 done; 🔨 v2 ready (utica_V2, 0.8213) | `AGH_predictions_v2_utica_V2-fusion.txt` |
-| `shl-submit-vote` | `submit_vote_helios.sbatch` | `submit_vote.py` (MLflow-tracked) | Helios CPU | 🔨 **v3 ready — ship the vote 0.8342** (utica_V2+mantisv2_V1) | `AGH_predictions_v3_vote.txt` |
+| `shl-submit-vote` | `submit_vote_helios.sbatch` | `submit_vote.py` (MLflow-tracked) | Helios CPU | ✅ **v3 SHIPPED 2026-06-26** (sha `3c10d41`, 0.8342); proba re-run for cross-team combine | `AGH_predictions_v3_vote.txt` |
 | `shl-vib` | `vibration_psd.sbatch` | `vibration_psd_diagnostic.py` | either | ✅ done (H1) | `VIBRATION_DIAGNOSTIC.md` |
 | `shl-vexpert` | `vehicle_expert.sbatch` | `vehicle_expert.py` | Athena | ✅ done (V4 DISABLE) | `VEHICLE_EXPERT_RESULTS.md` |
 | _Tier 2 (gravity-canon, layer/pool)_ | _not built_ | — | Athena GPU | ⏳ planned | — |
@@ -215,8 +215,25 @@ sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch    # -> BAKEOFF_SPLIT.md (
   dead → stood up the **Helios GH200 (aarch64) extraction lane**: hybrid-arch env, aarch64 `uv` +
   torch 2.5.1/cu12.4 on Grace-Hopper (smoke ~1800 win/s), MLflow-logged extraction, group-storage
   outputs. FM bake-off (MantisV2/Mantis8M/UTICA vs MOMENT) now extracting on Helios while Athena sleeps.
+- **2026-06-26** — **Shipped v3 submission**: calibrated soft-vote (utica_V2 + mantisv2_V1, weighted +
+  per-class recal), E-VOTE-01 temporal lock **0.8342** (`SUBMISSIONS.md`, sha `3c10d41`). Launched the
+  **E-FMDIV diversity-voter round** on Helios: AST + DINOv2 *per-channel* extractions (GH200) →
+  cross-channel heads (`afterok`), ImageBind native-IMU bake-off + vote (CPU), deterministic bake-off
+  re-confirm (`shl-probe`). Cross-team combine tooling landed (`combine_external.py` +
+  `COMBINATION_CONTRACT.md`); `submit_vote --save-proba` emits the (92726,8) AGH proba for the blend.
+- **2026-06-27** — **Perf fix + incident.** GPU extractions ran at ~9% util — the `--per-channel`
+  C-loop (5 small GPU forwards/chunk) starved the GH200. Fix: **batched per-channel** for AST/DINOv2
+  (`5f9f401`) — one big forward per chunk; **number-identical** (`test_batched_per_channel_equals_loop`),
+  util → ~27%. Chose accuracy-neutral over the faster `torch.stft` GPU spectrogram (would change the
+  representation → re-validation) per the no-accuracy-loss constraint; the serial scipy CPU spectrogram
+  is the remaining bottleneck (CPU-prefetch path deferred, number-neutral if needed). **Collision
+  lesson:** two extraction jobs writing the same `embeddings/<tag>_pc/` dir concurrently race
+  `open_memmap`/resume → corrupt output. Always `scancel` the old run **and** wipe the partial dir
+  before resubmitting an optimized run. Clean re-run = single DINO/AST pair + heads (`afterok`) + a vote
+  re-run (the first v3 run predated `--save-proba`, so `preds_test_v3_vote.npy` was missing). **E-FMDIV
+  results pending** (extractions+heads still on GH200) — conclusion entry to follow.
 
-## Runbook — soft-voting head (job `shl-vote`, registered 2026-06-26) [pending submit]
+## Runbook — soft-voting head (job `shl-vote`, registered 2026-06-26) [shipped 2026-06-26 as v3]
 Goal: does a calibrated late-fusion vote of the bake-off top-2 beat the best single FM on the
 lock TEST? Registered (committed), MLflow-tracked, gated KEEP iff Δ>+0.001. CPU on Helios.
 ```
