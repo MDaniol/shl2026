@@ -83,8 +83,8 @@ def imu_log_spectrogram(x, n_mels: int, n_frames: int, fs: int = 100):
     """(n_signals, T) raw IMU -> (n_signals, n_frames, n_mels) log-power spectrogram on the AST
     input grid. STFT over the IMU band (0-50 Hz @100 Hz — NOT the 16 kHz audio mel front-end, which
     would squash our signal into one bin); log1p power; bilinear-resize to AST's (n_frames, n_mels);
-    per-spectrogram z-norm (AST expects standardized input). Library-first: scipy STFT + torch resize.
-    Returns a torch.FloatTensor."""
+    per-spectrogram standardize to mean 0 / std 0.5 (AST's documented input contract). Library-first:
+    scipy STFT + torch resize. Returns a torch.FloatTensor."""
     from scipy.signal import spectrogram as _spec
     _, _, Sxx = _spec(np.asarray(x, dtype=np.float64), fs=fs, nperseg=64, noverlap=48, axis=-1)
     S = torch.from_numpy(np.log1p(Sxx).astype(np.float32))[:, None]      # (n,1,F,Tt)
@@ -160,8 +160,8 @@ def build_embedder(model: str, device: str, tf_batch: int, vit_layer_frac: float
             outs = []
             with torch.no_grad():
                 for i in range(0, len(x), tf_batch):
-                    xb = torch.tensor(x[i:i + tf_batch], dtype=torch.float32).to(device)
-                    e = net({ModalityType.IMU: xb})[ModalityType.IMU]   # (b, 1024)
+                    xb = torch.from_numpy(np.ascontiguousarray(x[i:i + tf_batch])).float().to(device)
+                    e = net({ModalityType.IMU: xb})[ModalityType.IMU]   # (b, 1024) L2-normalized
                     outs.append(e.cpu().numpy()); del xb, e
             empty_cache(device)
             out = np.concatenate(outs, 0).astype(np.float32)

@@ -31,6 +31,8 @@ mkdir -p notebooks/mdaniol/modeling/logs "$EMB"
 mkdir -p "$SCRATCH/imagebind_ckpt"; ln -sfn "$SCRATCH/imagebind_ckpt" "$PROJECT_DIR/.checkpoints"
 # ImageBind is not on PyPI cleanly; install from the repo (aarch64 deps may be finicky -> smoke first)
 python -c "import imagebind" 2>/dev/null || uv pip install "git+https://github.com/facebookresearch/ImageBind.git"
+# the guardrail gate runs the AST/ViT spectrogram tests (need scipy; they do NOT skip on missing scipy)
+python -c "import transformers, scipy" 2>/dev/null || uv pip install "transformers==4.44.2" scipy
 python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >&2; exit 1; }
 
 echo "[$(date)] HELIOS GH200 ImageBind-IMU extract limit=${LIMIT:-all} -> $EMB/imagebind_V0"
