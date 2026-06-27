@@ -251,6 +251,8 @@ def main() -> int:
         for k, v in winner["rep"]["per_class"].items():
             run.log_metrics({f"test_f1_{k}": v["f1"]})
         run.log_artifact(args.out)
+        if args.split.exists():
+            run.log_artifact(args.split)              # snapshot the split file (§8)
     print(f"wrote {args.out}", flush=True)
     return 0
 

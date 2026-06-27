@@ -23,6 +23,8 @@ export EMB_SRC="${EMB_SRC:-$PLG_GROUPS_STORAGE/plggmhealth/shl2026/embeddings}"
 bash "$PROJECT_DIR/notebooks/mdaniol/hpc/link_data.sh" "$PROJECT_DIR"
 mkdir -p notebooks/mdaniol/modeling/logs
 
+python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >&2; exit 1; }
+
 echo "[$(date)] subject-leakage diagnostic on $(hostname)"
 python notebooks/mdaniol/modeling/subject_leakage.py \
     --feat-dir "$PROJECT_DIR/dataset_parquet_features"

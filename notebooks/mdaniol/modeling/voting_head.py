@@ -184,6 +184,8 @@ def main() -> int:
         run.log_artifact(args.out)
         run.log_artifact(json_path)
         run.log_artifact(model_path)                  # fitted models + vote params (§8)
+        if args.split.exists():
+            run.log_artifact(args.split)              # snapshot the split file (§8)
     print(f"wrote {args.out} + {model_path.name}  ({time.time()-t0:.0f}s)")
     return 0
 

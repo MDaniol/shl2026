@@ -238,6 +238,8 @@ def main() -> int:
                              "delta_vs_handcrafted": d})
             run.log_artifact(md)
             run.log_artifact(json_path)
+            if args.split.exists():
+                run.log_artifact(args.split)          # snapshot the split file (rule §8)
         print(f"  appended -> {md}  ({time.time()-t0:.0f}s)")
         return 0
 
