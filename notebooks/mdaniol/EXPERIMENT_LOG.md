@@ -80,7 +80,16 @@ residual (Subway→Train = 38% of Subway) is likely irreducible here without a *
 |---|---|---|
 | **Per-channel extraction** (`extract_embeddings.py --per-channel`, job `shl-extract-pc`) | (n,C,d) V1 axes for utica+mantisv2 → cross-channel head input | **ready** (GH200); diff-tested |
 | **Cross-channel head E-HEAD-01** (`head_xchannel.py`, job `shl-head`) | mean/concat/multistat/**se** heads over (n,C,d)⊕520; ECE+robustness; ≥3 seeds; novel = SE channel-mixing | ✅ **CONCLUDED 2026-06-27** — H-chan weakly confirmed (+0.006 utica/CI-pos, +0.004 mantisv2/noise), best head 0.814 ≪ vote 0.834 → paper result, NOT a submission (row #12) |
-| **FM diversity-voter program E-FMDIV** (research: `VISION_SOUND_FM_RESEARCH.md`; 4 arXiv agents; TiViT 2506.08641-validated) | 3 orthogonal frozen voters into the vote: **(C) AST** spectrogram (built), **(B) DINOv2** vision-ViT on IMU spectrogram-image / intermediate layer (built; `--model dinov2`, job `shl-extract-vit`), **(A) ImageBind + PRIMUS** native-IMU (pending). Each: extract path + packer + diff-test + sbatch + MLflow; SMOKE first. | **AST + DINOv2 BUILT** (diff-tested); **ImageBind/PRIMUS HELD pending HAR-agent validation** (har-dl-scientist + har-fm-scientist auditing the shared approach + native-IMU contracts). Gate: keep only BHT-lock improvers (+ no per-class regression) |
+| **FM diversity-voter program E-FMDIV** (research: `VISION_SOUND_FM_RESEARCH.md`; 4 arXiv agents; TiViT 2506.08641-validated) | 3 orthogonal frozen voters into the vote: **(C) AST** spectrogram, **(B) DINOv2** vision-ViT on IMU spectrogram-image / intermediate layer (`--model dinov2`, job `shl-extract-vit`), **(A) ImageBind + PRIMUS** native-IMU. Each: extract path + packer + diff-test + sbatch + MLflow; SMOKE first. | **AST + DINOv2 BUILT + HAR-AGENT-VALIDATED** (62be333): 6 MUST-FIX applied (AST std→0.5; DINOv2 drop CLS+register tokens; set_global_seeds; sbatch gates; resume manifest; empty-batch guard). Confirmed clean: leakage, integration, no off-by-one. **ImageBind/PRIMUS next** w/ corrected contracts. Gate: keep only BHT-lock improvers |
+
+**E-FMDIV validation (HAR agents, 2026-06-27):** `har-dl-scientist` + `har-fm-scientist` audited the
+AST/DINOv2 voters → 6 MUST-FIX applied (62be333). **Follow-ups (nice-to-have, recorded):** add **CLIP**
+backbone (TiViT's best, needs `.vision_model`); A/B TiViT's **trivial 2D-reshape** encoding vs spectrogram
+for the ViT branch; sweep `--vit-layer-frac {0.45,0.55,0.65}` (TiViT's win = 0.44); consider per-channel
+**concat** (not mean) to keep axis identity. **Corrected native-IMU contracts to build:** ImageBind IMU =
+`[B,6,2000]` acc+gyr, interp 500→2000, **per-channel mean-SUBTRACTION only (NOT z-norm)** → 1024-d;
+PRIMUS = 6-ch acc+gyr, 5 s, 50 Hz (poly-resample 100→50 → 250), **verify channel order + input norm from
+the repo before building**. Both Ego4D head-mounted → validate standalone (per-class Run/vehicles) first.
 | **AST spectrogram voter E-AST-01** (`extract_embeddings.py --model ast`, job `shl-extract-ast`) | frozen AST ViT over per-channel IMU log-spectrograms (0–50 Hz band, NOT the audio mel front-end) → 768-d, mean over channels | **BUILT + pre-registered** 2026-06-27; spectrogram diff-tested; SMOKE first, then probe + add to vote |
 | **Rotation-TTA** (`tta_embeddings.py`) | mean FM embedding over K reorientations | built; ready to run after the head |
 
