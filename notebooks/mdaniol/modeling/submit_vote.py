@@ -72,6 +72,9 @@ def main() -> int:
                          "already-fitted models + locked vote params -> predict test WITHOUT refitting "
                          "(minutes, not hours). Predictions are identical to the fit path (same models).")
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--save-proba", type=Path, default=None,
+                    help="also save the (92726,8) calibrated test-proba matrix (class axis 1..8) as "
+                         ".npy — the artifact for cross-team combination (see COMBINATION_CONTRACT.md).")
     args = ap.parse_args()
     from shl2026 import write_submission, track
 
@@ -121,7 +124,13 @@ def main() -> int:
 
     # predict the unlabelled test with the locked weights + recal
     wv_te = np.einsum("knc,k->nc", Pte, w)
-    pred = cls[(wv_te * cw).argmax(1)].astype(int)
+    proba_te = wv_te * cw
+    proba_te = proba_te / (proba_te.sum(1, keepdims=True) + 1e-12)      # (92726,8) calibrated, class 1..8
+    pred = cls[proba_te.argmax(1)].astype(int)
+    if args.save_proba:
+        np.save(args.save_proba, proba_te.astype(np.float32))
+        print(f"[vote] saved test proba {proba_te.shape} -> {args.save_proba} (for cross-team combine)",
+              flush=True)
     assert len(pred) == N_TEST and set(np.unique(pred)).issubset(set(range(1, 9)))
     uniq, cnt = np.unique(pred, return_counts=True)
     dist = {CLASS_NAMES[c - 1]: round(n / len(pred), 3) for c, n in zip(uniq, cnt)}
