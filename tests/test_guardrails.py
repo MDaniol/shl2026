@@ -355,6 +355,23 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_pool_per_channel_equals_channel_mean(tmp_path):
+    """pool_per_channel mean-pools a per-channel (n,C,d) embedding dir into a (n,d) voter dir, and
+    that MUST equal the channel-mean exactly (it reproduces a non-per-channel extraction, so the
+    dinov2 voter is number-identical to a fresh non-pc extraction — no GPU re-run)."""
+    import numpy as np
+    import pool_per_channel as pp
+    rng = np.random.default_rng(0)
+    src = tmp_path / "dinov2_V2_pc"; src.mkdir()
+    dst = tmp_path / "dinov2_V2"
+    a = rng.standard_normal((7, 5, 12)).astype(np.float32)
+    np.save(src / "validation__Bag.npy", a)
+    assert pp.pool_dir(src, dst) == 1
+    out = np.load(dst / "validation__Bag.npy")
+    assert out.shape == (7, 12)
+    assert np.array_equal(out, a.mean(axis=1).astype(np.float32))
+
+
 def test_pack_imagebind_contract():
     """ImageBind IMU packer: 6-ch acc+gyr (NO magnetometer), interp to 2000 samples, per-channel
     MEAN-SUBTRACTION (NOT z-norm — ImageBind's training contract; har-fm-scientist fix). Pure-numpy
