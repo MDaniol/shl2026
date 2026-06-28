@@ -72,6 +72,10 @@ def main() -> int:
                          "already-fitted models + locked vote params -> predict test WITHOUT refitting "
                          "(minutes, not hours). Predictions are identical to the fit path (same models).")
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--decision", choices=["mult", "additive"], default="mult",
+                    help="mult = weighted+recal (v3 champion); additive = + C1 macro-F1 additive-logit "
+                         "bias (joint CD on TUNE), the significant v4 win (+0.0044, Run rebalanced). "
+                         "additive requires the FIT path (needs TUNE probas).")
     ap.add_argument("--save-proba", type=Path, default=None,
                     help="also save the (92726,8) calibrated test-proba matrix (class axis 1..8) as "
                          ".npy — the artifact for cross-team combination (see COMBINATION_CONTRACT.md).")
@@ -122,9 +126,21 @@ def main() -> int:
         print(f"[vote] weights={dict(zip(embs, np.round(w,3)))} TUNE macro(weighted+recal)={tune_macro:.4f}",
               flush=True)
 
-    # predict the unlabelled test with the locked weights + recal
+    # predict the unlabelled test with the locked weights + recal (+ optional C1 additive decision)
     wv_te = np.einsum("knc,k->nc", Pte, w)
     proba_te = wv_te * cw
+    if args.decision == "additive":
+        # C1 (v4): additive log-bias selected on TUNE. In prob space this is a per-class multiply by
+        # exp(b) — keeps proba_te a valid distribution AND consistent with the argmax (good for combine).
+        if args.from_models:
+            print("[vote] FATAL: --decision additive needs the FIT path (TUNE probas); drop --from-models",
+                  file=sys.stderr); return 1
+        from decision_rule import additive_bias_search
+        b = additive_bias_search(wv_tu * cw, ycal)                     # joint CD on TUNE (same as C1)
+        proba_te = proba_te * np.exp(b)
+        cfg += "+addlogit"
+        print(f"[vote] applied C1 additive-logit bias (v4); per-class exp(b)={np.round(np.exp(b),3)}",
+              flush=True)
     proba_te = proba_te / (proba_te.sum(1, keepdims=True) + 1e-12)      # (92726,8) calibrated, class 1..8
     pred = cls[proba_te.argmax(1)].astype(int)
     if args.save_proba:

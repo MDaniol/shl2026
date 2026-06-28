@@ -355,6 +355,22 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_additive_logspace_equals_exp_multiply():
+    """v4 submission consistency: the C1 decision is argmax(log p + b); submit_vote ships it as
+    argmax(p · exp(b)). These MUST give the identical per-window label (so the submission == the
+    validated rule), and p·exp(b) renormalizes to a valid proba for the combine."""
+    import numpy as np
+    import decision_rule as dr
+    rng = np.random.default_rng(1)
+    P = dr._norm(rng.random((300, 8)) + 0.01)
+    b = rng.standard_normal(8)
+    a_log = (np.log(P + dr.EPS) + b).argmax(1)
+    a_mul = (P * np.exp(b)).argmax(1)
+    assert np.array_equal(a_log, a_mul)
+    q = dr._norm(P * np.exp(b))
+    assert np.allclose(q.sum(1), 1.0) and np.array_equal(q.argmax(1), a_mul)
+
+
 def test_ablation_importance_helpers():
     """Ablation overfitting probes: importance share splits emb vs HC correctly; Jaccard top-k is 1
     for identical importances and <1 when the top set differs."""
