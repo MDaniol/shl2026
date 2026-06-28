@@ -355,6 +355,18 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_ablation_importance_helpers():
+    """Ablation overfitting probes: importance share splits emb vs HC correctly; Jaccard top-k is 1
+    for identical importances and <1 when the top set differs."""
+    import numpy as np
+    import ablation_rep as ab
+    imp = np.array([3.0, 1.0, 0.0, 0.0, 6.0])                       # n_emb=2 → emb=4, hc=6, tot=10
+    fm_s, hc_s = ab.importance_share(imp, n_emb=2)
+    assert abs(fm_s - 0.4) < 1e-9 and abs(hc_s - 0.6) < 1e-9
+    assert ab.jaccard_topk(imp, imp, 2) == 1.0
+    assert ab.jaccard_topk(np.array([5, 4, 0, 0]), np.array([0, 0, 4, 5]), 2) == 0.0
+
+
 def test_robustness_diag_functions():
     """Confusion/per-class-F1/top-2/prior helpers: perfect diagonal → macro 1.0; a planted rank-2
     recovery is detected; uniform-prior reweight is computed without error."""
