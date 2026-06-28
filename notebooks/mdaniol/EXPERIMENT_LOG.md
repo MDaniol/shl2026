@@ -282,6 +282,17 @@ sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch    # -> BAKEOFF_SPLIT.md (
     Train↔Subway binary-head re-split, paired-significance gate) and **orient** (`orient_features.py`,
     gravity-V/H + SO(3) invariants, rotation-invariance unit-tested) vs Torso. Combine track (colleague's
     decorrelated DINoV2) teed up as the load-bearing ~0.85 lever. Every script MLflow-traced + guardrail-tested.
+  - **OUTCOMES (2026-06-28 PM):**
+    - **v4 KEEP → new champion ≈0.838.** `submit_vote --decision additive`: TEST 0.8383 (significant),
+      `exp(b)=[·,1.82 Walk,3.67 Run,·…]`, test pred distribution sane (Run 1.3%, no collapse). Shipped.
+    - **E-RAIL DISABLE.** rail 0.8344 vs 0.8339, **paired Δ+0.0005 CI[-0.0004,+0.0015] p=0.151** — inside
+      noise (binary pair-acc 0.85 but the macro doesn't move; the rail confusion is near the per-window
+      info limit). Clean paper ablation.
+    - **orient DISABLE (hurts).** emb⊕520⊕orient 0.8062 vs 0.8229 (Δ−0.017, **Torso −0.043**): on the
+      held-out TEST (same placements) rotation-invariance *removes* placement-specific signal the model
+      exploits. Paper point on the invariance/in-distribution trade-off.
+  - **Net:** internal levers exhausted (only C1 held, +0.004 → v4 0.838); the honest IMU-only per-window
+    ceiling holds; **the decorrelated colleague combine is the only remaining real path to ~0.85.**
 
 ## Runbook — soft-voting head (job `shl-vote`, registered 2026-06-26) [shipped 2026-06-26 as v3]
 Goal: does a calibrated late-fusion vote of the bake-off top-2 beat the best single FM on the
