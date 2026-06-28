@@ -274,3 +274,39 @@ information question; measure it first."
 - **Run:** `EMB=utica_V2 REP=fusion sbatch hpc/pair_separability_helios.sbatch` (then `REP=handcrafted`).
 - **Traceability:** MLflow run `pairsep_<emb>_<rep>` (per-pair bal-acc + F1) + `PAIR_SEPARABILITY.md`
   + split snapshot; this pre-reg; diary conclusion on completion.
+
+### C1 — macro-F1-aware additive-logit decision rule (registered 2026-06-28)
+`modeling/decision_rule.py` (+ `hpc/decision_rule_helios.sbatch`). The multiplicative `calibrate()`
+can't lift an under-emitted class at p→0; the additive log-bias `argmax(log p_k + b_k)` (GLA
+2310.08106, joint coordinate-descent on TUNE per Lipton 1402.1892) can.
+- **Gate (frozen):** KEEP iff best-on-TUNE rule beats the within-run champion on TEST **and** the
+  **paired-bootstrap Δ CI excludes 0** (the correct test, not marginal-CI overlap) **and** the
+  selection-lock gap ≤ champion+0.01. SLD informational-only (transductive → rules-gated).
+- **OUTCOME 2026-06-28: KEEP.** `mult+additive` TEST 0.8383 vs 0.8339, **paired Δ +0.0044
+  CI[+0.0026,+0.0063]**, gap *smaller* than champion; Run rebalanced 0.95→0.97 → shipped as **v4**
+  (`submit_vote --decision additive`), gated on the prior-robustness check (`robustness_diag`).
+
+### E-RAIL — gated Train↔Subway disambiguator (registered 2026-06-28, before peeking)
+`modeling/rail_disambig.py` (+ `hpc/rail_disambig_helios.sbatch`). Data-justified by `robustness_diag`:
+Subway→Train errors are 99% top-2-recoverable, Train→Subway 80% — the model ranks the pair adjacent
+and picks the wrong one.
+- **Hypothesis:** a binary Train-vs-Subway head (emb⊕520, FIT-only) re-splitting the champion's
+  within-pair mass (blend β on TUNE) recovers a share of those flips without touching other classes.
+- **Gate (frozen):** KEEP iff the rail TEST macro beats the champion with **paired Δ CI excluding 0**.
+  Same discipline that correctly DISABLEd the earlier rail expert — a good TUNE number alone ships nothing.
+- **Traceability:** MLflow `rail_*` (macro + paired CI + bin pair-acc + β) + `RAIL_DISAMBIG_RESULTS.md`.
+
+### orient — orientation-invariant features vs Torso fragility (registered 2026-06-28, before peeking)
+`modeling/orient_features.py` (+ `hpc/orient_features_helios.sbatch`). Motivated by `robustness_diag`:
+Torso macro 0.766 vs Bag/Hips ~0.86 (Bike=0.44); the hidden test has no location label.
+- **Hypothesis:** gravity-V/H + cross-sensor SO(3) invariants (rotation-invariant by construction —
+  unit-tested) appended to the 520 improve generalization across placements, especially **Torso**.
+- **Gate (frozen):** KEEP iff emb⊕520⊕orient beats emb⊕520 on the honest TEST (report per-location;
+  the Torso Δ is the target). Honest-eval, TEST locked once.
+- **Traceability:** MLflow `orient_*` (macro + per-location Torso) + `ORIENT_FEATURES_RESULTS.md`.
+
+### P0 diagnostics — ceiling / robustness / ablation (registered 2026-06-28)
+`ceiling_diag.py` (oracle + confusion-collapse ceiling + FM error-correlation + bootstrap CI),
+`robustness_diag.py` (confusion structure + per-location + prior-sensitivity), `ablation_rep.py`
+(fm/hc/fusion + gap + HC importance share + top-k stability). Analysis-only on the locked TEST
+(select nothing). All MLflow-traced; outcomes recorded in EXPERIMENT_LOG diary 2026-06-28.

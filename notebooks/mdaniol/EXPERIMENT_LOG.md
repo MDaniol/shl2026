@@ -42,6 +42,14 @@ CPU work = Ares / Helios-CPU (x86). Helpers: `env_mdaniol.sh` (arch-aware), `lin
 | `shl-vote` | `voting_head.sbatch` | `voting_head.py` | Helios CPU | ✅ done — E-VOTE-01 concluded: soft-vote top-2 = **0.8342** (KEEP, +0.0129 vs best single) | `VOTING_HEAD_RESULTS.md` |
 | `shl-pool` | `pool_emb_helios.sbatch` | `pool_per_channel.py` | Helios CPU | 🔨 ready — mean-pool `dinov2_V2_pc`→`dinov2_V2` voter (number-identical to non-pc extraction; gated) | `embeddings/dinov2_V2/` + log |
 | `shl-vote` (E-FMDIV-VOTE) | `voting_head.sbatch` (`EMBS=…,dinov2_V2`) | `voting_head.py` | Helios CPU | ❌ **CONCLUDED 2026-06-28 DISABLE** — 3-way +`dinov2` 0.8281, +`imagebind` 0.8310, both < **0.8342** (diversity dilutes; overfit via selection-lock gap) | `VOTING_HEAD_RESULTS.md` |
+| `shl-ceiling` | `ceiling_diag_helios.sbatch` | `ceiling_diag.py` | Helios CPU | ✅ 2026-06-28 — oracle 0.931, collapse 0.871, utica↔mantis Q=0.965 (redundant) | `CEILING_DIAGNOSTICS.md` |
+| `shl-pairsep` (A1) | `pair_separability_helios.sbatch` | `pair_separability.py` | Helios CPU | ✅ 2026-06-28 — Car/Bus 0.91 (captured), Train/Subway 0.79 (marginal) | `PAIR_SEPARABILITY_*.md` |
+| `shl-decision` (C1) | `decision_rule_helios.sbatch` | `decision_rule.py` | Helios CPU | ✅ **KEEP 2026-06-28** — `mult+additive` 0.8383 (paired Δ+0.0044 sig) → **v4** | `DECISION_RULE_RESULTS.md` |
+| `shl-ablation` | `ablation_rep_helios.sbatch` | `ablation_rep.py` | Helios CPU | ✅ 2026-06-28 — fm 0.776/hc 0.791/fusion 0.823; **HC KEEP** (not overfit) | `ABLATION_REP.md` |
+| `shl-robust` | `robustness_diag_helios.sbatch` | `robustness_diag.py` | Helios CPU | ✅ 2026-06-28 — Torso fragile (0.766), rail 80–99% top-2-recoverable, prior-robust | `ROBUSTNESS_DIAG.md` |
+| `shl-rail` (E-RAIL) | `rail_disambig_helios.sbatch` | `rail_disambig.py` | Helios CPU | 🔨 **registered 2026-06-28** — gated Train↔Subway re-split; KEEP iff paired Δ CI>0 | `RAIL_DISAMBIG_RESULTS.md` |
+| `shl-orient` | `orient_features_helios.sbatch` | `orient_features.py` | Helios CPU | 🔨 **registered 2026-06-28** — gravity-V/H + SO(3) invariants vs Torso; rotation-invariance tested | `ORIENT_FEATURES_RESULTS.md` |
+| `shl-submit-vote` (v4) | `submit_vote_helios.sbatch` (`DECISION=additive`) | `submit_vote.py` | Helios CPU | 🔨 **v4 ready — ship C1 additive ≈0.838** (gated on prior-robustness) | `AGH_predictions_v4_vote.txt` |
 | `shl-extract-pc` | `extract_per_channel_helios.sbatch` (array) | `extract_embeddings.py --per-channel` | **Helios GH200** | 🔨 ready — per-channel V1 (utica+mantisv2) for the cross-channel head | `embeddings/<fm>_V1_pc/` (n,C,d) + MLflow |
 | `shl-head` | `head_xchannel_helios.sbatch` | `head_xchannel.py` (MLflow) | **Helios GH200** | E-HEAD-01 ✅; **E-FMDIV-HEAD**: `dinov2_V2_pc` ✅ done (best head TEST 0.797 ≪ 0.834, SE KEEP=False); `ast_V2_pc` ⏳ (after AST extract) | `HEAD_RESULTS_<tag>.md` |
 | `shl-tta` | `tta_embeddings.sbatch` | `extract_embeddings.py --tta-k` | Athena/Helios GPU | 🔨 ready | `embeddings/..._tta*/` |
@@ -253,6 +261,27 @@ sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch    # -> BAKEOFF_SPLIT.md (
   - **Next:** champion submission regenerated deterministically as the fallback (`v3` = utica+mantis);
     pivoting to the deep-research **top-3**, starting with **A1 pair-separability diagnostic** (is the
     Train↔Subway / Car↔Bus ceiling beatable at all in the frozen rep, before investing in B1/B2).
+- **2026-06-28 (Phase-0 + decision layer + new levers; 11-agent / 3-round research synthesis →
+  `28_06_PLAN.md`).** Champion re-confirmed deterministically **0.8339** (closes #18; the 0.8342 was
+  pre-determinism-fix). Phase-0 diagnostics (analysis-only on locked TEST):
+  - **`ceiling_diag`** — top-2 oracle **0.931** (Δ+0.097: the prize is a *top-2 selection* problem),
+    confusion-collapse **0.871** (the two hard pairs = +0.037), **utica↔mantis Q=0.965** (redundant →
+    new same-family voters DILUTE; confirms E-FMDIV mechanism). Bootstrap CI [0.8276, 0.8398].
+  - **`pair_separability` (A1)** — Car↔Bus separable (0.91, already captured by multiclass);
+    **Train↔Subway marginal (0.79)**, FM adds +0.08 over handcrafted. Hard-pair head = small/paper lever.
+  - **C1 decision rule** — **KEEP**: `mult+additive` TEST **0.8383** vs 0.8339, **paired Δ +0.0044
+    CI[+0.0026,+0.0063]** (significant), gap *smaller* than champion, **Run 0.95→0.97** → shipped as
+    **v4** (`submit_vote --decision additive`).
+  - **`ablation_rep`** (answers the team-lead's handcrafted-overfitting worry) — fm 0.776 / hc 0.791 /
+    **fusion 0.823**; HC adds **+0.047** on honest TEST and the fusion gap (+0.027) ≈ fm gap (+0.026) →
+    **HC is NOT an overfitting liability; KEEP** (top-50 importance stability 0.69, a minor prune-able tail).
+  - **`robustness_diag`** — top-2 structure shows **Subway↔Train errors 80–99% top-2-recoverable**
+    (→ motivates E-RAIL); **Torso placement-fragile** (macro 0.766 vs ~0.86, Bike=0.44 → motivates
+    orient features); champion **prior-robust** (macro range [0.829, 0.834]).
+  - **New levers built + pre-registered (before peeking):** **E-RAIL** (`rail_disambig.py`, gated
+    Train↔Subway binary-head re-split, paired-significance gate) and **orient** (`orient_features.py`,
+    gravity-V/H + SO(3) invariants, rotation-invariance unit-tested) vs Torso. Combine track (colleague's
+    decorrelated DINoV2) teed up as the load-bearing ~0.85 lever. Every script MLflow-traced + guardrail-tested.
 
 ## Runbook — soft-voting head (job `shl-vote`, registered 2026-06-26) [shipped 2026-06-26 as v3]
 Goal: does a calibrated late-fusion vote of the bake-off top-2 beat the best single FM on the
