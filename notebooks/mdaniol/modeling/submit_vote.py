@@ -136,7 +136,7 @@ def main() -> int:
             print("[vote] FATAL: --decision additive needs the FIT path (TUNE probas); drop --from-models",
                   file=sys.stderr); return 1
         from decision_rule import additive_bias_search
-        b = additive_bias_search(wv_tu * cw, ycal)                     # joint CD on TUNE (same as C1)
+        b = additive_bias_search(wv_tu * cw, ycal, cls)                # joint CD on TUNE (same as C1)
         proba_te = proba_te * np.exp(b)
         cfg += "+addlogit"
         print(f"[vote] applied C1 additive-logit bias (v4); per-class exp(b)={np.round(np.exp(b),3)}",
