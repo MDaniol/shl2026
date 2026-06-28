@@ -31,7 +31,6 @@ import numpy as np
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 from probe_fusion import load_emb, load_feats, load_labels  # noqa: E402
-from split import load_split_with_location_map  # noqa: E402
 
 FIT, TUNE, TEST = 0, 1, 2
 PAIRS = {"Train_vs_Subway": (7, 8), "Car_vs_Bus": (5, 6)}
@@ -91,7 +90,7 @@ def main() -> int:
     Xva = build_rep(args.feat_dir, args.emb_root, args.emb, "validation", args.rep)
     ytr = load_labels(args.feat_dir, "train")[0]
     yva = load_labels(args.feat_dir, "validation")[0]
-    assign, _ = load_split_with_location_map(args.split, args.feat_dir)
+    assign = np.load(args.split)            # row-aligned to validation (embargo rows = -1, excluded by ==2)
     assert len(assign) == len(yva) == len(Xva), "split/validation length mismatch"
     Xfit = np.concatenate([Xtr, Xva[assign == FIT]]); yfit = np.concatenate([ytr, yva[assign == FIT]])
     Xtest, ytest = Xva[assign == TEST], yva[assign == TEST]
