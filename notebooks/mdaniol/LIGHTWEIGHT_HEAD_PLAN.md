@@ -310,3 +310,25 @@ Torso macro 0.766 vs Bag/Hips ~0.86 (Bike=0.44); the hidden test has no location
 `robustness_diag.py` (confusion structure + per-location + prior-sensitivity), `ablation_rep.py`
 (fm/hc/fusion + gap + HC importance share + top-k stability). Analysis-only on the locked TEST
 (select nothing). All MLflow-traced; outcomes recorded in EXPERIMENT_LOG diary 2026-06-28.
+
+### E-COMBINE — cross-team soft-vote our v4 ⊕ collaborator's frozen-DINoV2 (registered 2026-06-29, before peeking)
+`modeling/combine_pdusza.py` (+ `hpc/combine_pdusza_helios.sbatch`), guarded by
+`tests/test_guardrails.py::test_combine_pdusza_keymap_and_tunew`. The collaborator's pipeline is the one
+**competent (honest 0.8336) AND decorrelated** voter we have (frozen DINoV2 over STFT/CWT/GAF spectrogram
+images vs our frozen TS-FM vote over raw IMU) — our two FMs are redundant (Q=0.965), so an independent
+pipeline is the only source of new error patterns. His code passed a full HAR-agent leakage+compatibility
+audit (block-disjoint 60/20/20, holdout untouched, train-only image calibration, test isolated; same
+classes/geometry/order; 92,726 test rows 1:1).
+- **Hypothesis:** `P_v5 = w·P_our_v4 + (1−w)·P_his` beats both single pipelines — concentrated on the
+  confusable vehicle/rail classes where the two make *different* errors.
+- **Leakage-safe protocol:** tune the scalar `w` ONLY on the slice held out by BOTH models —
+  **(his `target_holdout`) ∩ (our `validation[TEST]`)** (our calibrate()+additive bias are fit on TUNE, so
+  only our TEST is clean for us). Match observations by `(row_index, position_code)`; assert
+  `his_y+1 == our_y` on the slice (alignment cross-check). Hidden test blended 1:1 in official order, with
+  an `argmax-agreement>0.5` guard.
+- **Gate (frozen):** KEEP v5 iff blend macro-F1 on the doubly-held-out slice > max(ours, his) with the
+  **paired-bootstrap Δ CI excluding 0**. Report per-class (ours/his/blend) + decorrelation Q.
+- **Run:** stage his 4 files to `$PLG_GROUPS_STORAGE/plggmhealth/shl2026/pdusza_results/`; then
+  `sbatch hpc/combine_pdusza_helios.sbatch`. Needs our `preds_test_v4_vote.npy`.
+- **Traceability:** MLflow `combine_pdusza_v5` (macro + w + Q + paired CI + per-class) +
+  `COMBINE_PDUSZA_RESULTS.md` + `AGH_predictions_v5_combine.txt`; this pre-reg; diary conclusion on completion.
