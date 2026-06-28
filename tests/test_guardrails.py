@@ -355,6 +355,24 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_orient_rotation_invariance():
+    """The orientation features MUST be invariant to a global phone rotation (the whole point — the
+    hidden test mixes placements). Rotate acc/gyr/mag by the same proper rotation → features unchanged."""
+    import numpy as np
+    import orient_features as of
+    rng = np.random.default_rng(0)
+    n, T = 6, 500
+    acc = rng.standard_normal((n, 3, T)); acc[:, 2, :] += 9.8
+    gyr = 0.1 * rng.standard_normal((n, 3, T)); mag = 40 + rng.standard_normal((n, 3, T))
+    f0, names = of.orient_block(acc, gyr, mag)
+    R, _ = np.linalg.qr(rng.standard_normal((3, 3)))
+    R = R * np.sign(np.linalg.det(R))                              # ensure a proper rotation (det +1)
+    rot = lambda x: np.einsum("ij,njt->nit", R, x)
+    f1, _ = of.orient_block(rot(acc), rot(gyr), rot(mag))
+    assert f0.shape == (n, 11) and len(names) == 11
+    assert np.allclose(f0, f1, atol=1e-5), "orient features are NOT rotation-invariant"
+
+
 def test_rail_redistribute():
     """E-RAIL redistribute: β=0 ⇒ unchanged; β=1 ⇒ within-pair split = binary p; pair mass preserved;
     other classes untouched."""
