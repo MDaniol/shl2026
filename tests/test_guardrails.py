@@ -355,6 +355,28 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_robustness_diag_functions():
+    """Confusion/per-class-F1/top-2/prior helpers: perfect diagonal → macro 1.0; a planted rank-2
+    recovery is detected; uniform-prior reweight is computed without error."""
+    import numpy as np
+    import robustness_diag as rd
+    cls = np.asarray(rd.CLASSES)
+    y = np.array([7, 7, 5, 5])
+    perfect = rd.confusion_counts(y, y, cls)
+    f1, macro = rd.per_class_f1_from_confusion(perfect)
+    assert abs(f1[list(cls).index(7)] - 1.0) < 1e-9                 # Train perfectly predicted
+    assert abs(f1[list(cls).index(5)] - 1.0) < 1e-9                 # Car perfectly predicted
+    assert abs(macro - 2.0 / 8) < 1e-9                             # only 2 of 8 classes present & perfect
+    # top-2: Train predicted as Subway, but truth is rank-2 in proba → recoverable
+    proba = np.zeros((1, 8)); proba[0, list(cls).index(8)] = 0.6; proba[0, list(cls).index(7)] = 0.4
+    rows = rd.top2_structure(np.array([7]), np.array([8]), proba, cls)
+    assert rows and rows[0][0] == 7 and rows[0][1] == 8 and rows[0][3] == 1
+    # prior sensitivity runs and returns a macro per grid entry
+    C = rd.confusion_counts(np.array([7, 7, 5, 5, 3]), np.array([7, 8, 5, 5, 3]), cls)
+    res = rd.prior_sensitivity(C, cls, [("emp", C.sum(1) / C.sum()), ("uni", np.ones(8) / 8)])
+    assert len(res) == 2 and all(0 <= m <= 1 for _, m in res)
+
+
 def test_paired_bootstrap_diff():
     """C1 paired significance: deterministic; identical preds → Δ≈0 with CI bracketing 0; a strictly
     better rule → Δ>0 with lo>0 (the correct paired test, not a marginal-CI overlap)."""
