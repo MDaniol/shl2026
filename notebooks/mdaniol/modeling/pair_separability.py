@@ -38,12 +38,13 @@ NAME = {1: "Still", 2: "Walk", 3: "Run", 4: "Bike", 5: "Car", 6: "Bus", 7: "Trai
 
 
 def build_rep(feat_dir: Path, emb_root: Path, emb: str, split: str, rep: str) -> np.ndarray:
-    """Submission-style features for a split: fusion = emb ⊕ 520 handcrafted (default)."""
-    feats = load_feats(feat_dir, split)[0] if rep != "emb" else None
+    """Submission-style features for a split: fusion = emb ⊕ 520 handcrafted (default).
+    NOTE: load_feats returns the (n,520) matrix directly (NOT a tuple) — same as voting_head."""
+    feats = load_feats(feat_dir, split) if rep != "emb" else None
     e = load_emb(emb_root / emb, split) if rep != "handcrafted" else None
-    if rep == "fusion":
-        return np.concatenate([e, feats], axis=1)
-    return e if rep == "emb" else feats
+    out = np.concatenate([e, feats], axis=1) if rep == "fusion" else (e if rep == "emb" else feats)
+    assert out.ndim == 2, f"build_rep({rep}) expected 2-D, got {out.shape}"
+    return out
 
 
 def probe_pair(Xfit, yfit, Xtest, ytest, pos, neg):

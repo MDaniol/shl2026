@@ -355,6 +355,37 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_paired_bootstrap_diff():
+    """C1 paired significance: deterministic; identical preds → Δ≈0 with CI bracketing 0; a strictly
+    better rule → Δ>0 with lo>0 (the correct paired test, not a marginal-CI overlap)."""
+    import numpy as np
+    import decision_rule as dr
+    cls = np.asarray(dr.CLASSES)
+    rng = np.random.default_rng(0)
+    n = 1500
+    y = rng.integers(1, 9, n)
+    a = y.copy(); b = y.copy()
+    b[:300] = (b[:300] % 8) + 1                                         # b is worse on 300 windows
+    d, lo, hi, p = dr.paired_bootstrap_diff(y, a, b, B=300, seed=0)
+    d2, lo2, hi2, p2 = dr.paired_bootstrap_diff(y, a, b, B=300, seed=0)
+    assert (d, lo, hi, p) == (d2, lo2, hi2, p2)                         # deterministic
+    assert d > 0 and lo > 0 and p < 0.05                               # a significantly beats b
+    d0, lo0, hi0, p0 = dr.paired_bootstrap_diff(y, a, a, B=300, seed=0)
+    assert abs(d0) < 1e-9 and lo0 <= 0 <= hi0                          # identical → no win
+
+
+def test_build_rep_concatenates_2d(monkeypatch):
+    """A1 build_rep: fusion = emb ⊕ feats must be 2-D (regression guard for the load_feats[0] bug)."""
+    import numpy as np
+    import pair_separability as ps
+    monkeypatch.setattr(ps, "load_emb", lambda *a, **k: np.zeros((10, 768), np.float32))
+    monkeypatch.setattr(ps, "load_feats", lambda *a, **k: np.zeros((10, 520), np.float32))
+    p = Path(".")
+    assert ps.build_rep(p, p, "x", "validation", "fusion").shape == (10, 1288)
+    assert ps.build_rep(p, p, "x", "validation", "emb").shape == (10, 768)
+    assert ps.build_rep(p, p, "x", "validation", "handcrafted").shape == (10, 520)
+
+
 def test_ceiling_diag_functions():
     """Phase-0 diagnostics: top-2 oracle ≥ base, confusion-collapse corrects only in-pair swaps,
     error-correlation Q∈[-1,1] (identical preds → Q=1), bootstrap CI brackets the point estimate."""

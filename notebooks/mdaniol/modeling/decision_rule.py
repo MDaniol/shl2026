@@ -69,6 +69,22 @@ def additive_bias_search(P, y, cls, grid=None, rounds=4):
     return b
 
 
+def paired_bootstrap_diff(y, pred_a, pred_b, B=2000, seed=0, alpha=0.05):
+    """Per-window PAIRED bootstrap of macro-F1(a) − macro-F1(b): resample the SAME window indices for
+    both rules (they share the test set, so a paired test is far more sensitive than comparing two
+    marginal CIs). Returns (mean_diff, lo, hi, p_le0). 'a beats b' iff lo > 0."""
+    rng = np.random.default_rng(seed)
+    cls = np.asarray(CLASSES)
+    n = len(y)
+    diffs = np.empty(B)
+    for k in range(B):
+        idx = rng.integers(0, n, n)
+        diffs[k] = macro_f1(y[idx], pred_a[idx]) - macro_f1(y[idx], pred_b[idx])
+    lo, hi = np.quantile(diffs, [alpha / 2, 1 - alpha / 2])
+    return (float(macro_f1(y, pred_a) - macro_f1(y, pred_b)), float(lo), float(hi),
+            float((diffs <= 0).mean()))
+
+
 def sld_correct(P, src_prior, rounds=100, tol=1e-7):
     """Saerens-Latinne-Decaestecker EM: estimate the target (test) class prior from predicted probas
     P given the source prior, return (corrected probas, estimated target prior). Transductive global
@@ -127,7 +143,7 @@ def main() -> int:
 
     def record(name, pred_tu, pred_te):
         r_tu, r_te = class_report(ytune, pred_tu), class_report(ytest, pred_te)
-        rules[name] = (r_tu, r_te)
+        rules[name] = (r_tu, r_te, pred_te)
         pc = " ".join(f"{k[:2]}={d['f1']:.2f}" for k, d in r_te["per_class"].items())
         print(f"[decision] {name:18s} TUNE={r_tu['macro_f1']:.4f} TEST={r_te['macro_f1']:.4f} | {pc}",
               flush=True)
@@ -166,19 +182,25 @@ def main() -> int:
     best = max(cands, key=lambda n: cands[n][0]["macro_f1"])            # SELECT on TUNE
     best_tu, best_test = cands[best][0]["macro_f1"], cands[best][1]["macro_f1"]
     best_gap = best_tu - best_test
-    keep = (best_test > champ_te + 0.001) and (best_gap <= champ_gap + 0.01)   # beat champ on TEST + lock-gap budget
+    # PAIRED significance vs the champion (the correct test — both rules score the SAME windows; a
+    # marginal-CI overlap is NOT the right comparison). 'real win' iff the paired diff CI excludes 0.
+    d, dlo, dhi, p_le0 = paired_bootstrap_diff(ytest, cands[best][2], rules["mult_reweight"][2])
+    significant = dlo > 0.0
+    keep = (best_test > champ_te + 0.001) and (best_gap <= champ_gap + 0.01) and significant
     print(f"\n[decision] champion(mult_reweight) TEST={champ_te:.4f} (gap {champ_gap:+.4f}); "
-          f"best-on-TUNE={best} TEST={best_test:.4f} (gap {best_gap:+.4f}) -> "
-          f"{'KEEP' if keep else 'no improvement / overfit-gated'}", flush=True)
+          f"best-on-TUNE={best} TEST={best_test:.4f} (gap {best_gap:+.4f}); "
+          f"paired Δ={d:+.4f} CI[{dlo:+.4f},{dhi:+.4f}] p(Δ≤0)={p_le0:.3f} -> "
+          f"{'KEEP (significant)' if keep else 'NOT a significant win'}", flush=True)
 
     lines = [f"# C1 decision-layer over vote({'+'.join(embs)}) — select on TUNE, lock TEST once "
              f"(champion={champ_te:.4f}, bar-ref={args.bar}).",
              f"champion `mult_reweight` TEST={champ_te:.4f} (gap {champ_gap:+.4f}); best-on-TUNE=`{best}` "
-             f"TEST={best_test:.4f} (gap {best_gap:+.4f}) **{'KEEP' if keep else 'no improvement'}** "
+             f"TEST={best_test:.4f} (gap {best_gap:+.4f}); **paired Δ={d:+.4f} CI[{dlo:+.4f},{dhi:+.4f}] "
+             f"p(Δ≤0)={p_le0:.3f}** → **{'KEEP (significant)' if keep else 'NOT a significant win'}** "
              f"(SLD informational-only, excluded from gate).\n",
              "| rule | TUNE macro | TEST macro | per-class F1 (TEST) |", "|---|---|---|---|"]
-    for name, (r_tu, r_te) in rules.items():
-        pc = " ".join(f"{k[:2]}={d['f1']:.2f}" for k, d in r_te["per_class"].items())
+    for name, (r_tu, r_te, _p) in rules.items():
+        pc = " ".join(f"{k[:2]}={d2['f1']:.2f}" for k, d2 in r_te["per_class"].items())
         lines.append(f"| {name} | {r_tu['macro_f1']:.4f} | {r_te['macro_f1']:.4f} | {pc} |")
     args.out.write_text("\n".join(lines) + "\n")
     print(f"[decision] wrote {args.out}", flush=True)
@@ -190,7 +212,8 @@ def main() -> int:
                tags={"phase": "decision", "experiment": "C1-decision-rule",
                      "decision": "KEEP" if keep else "DISABLE"}) as run:
         run.log_metrics({"macro_f1": best_test, "champion_test": champ_te, "best_gap": best_gap,
-                         "champ_gap": champ_gap, "sld_shift": shift}
+                         "champ_gap": champ_gap, "sld_shift": shift,
+                         "paired_diff": d, "paired_ci_lo": dlo, "paired_ci_hi": dhi, "paired_p_le0": p_le0}
                         | {f"{n}_test": rules[n][1]["macro_f1"] for n in rules}
                         | {f"{n}_tune": rules[n][0]["macro_f1"] for n in rules})
         run.log_artifact(args.out)
