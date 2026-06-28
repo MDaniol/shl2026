@@ -355,6 +355,23 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_rail_redistribute():
+    """E-RAIL redistribute: β=0 ⇒ unchanged; β=1 ⇒ within-pair split = binary p; pair mass preserved;
+    other classes untouched."""
+    import numpy as np
+    import rail_disambig as rd
+    cls = np.asarray(rd.CLASSES)
+    P = np.array([[0.1, 0.1, 0.0, 0.1, 0.1, 0.1, 0.3, 0.2]])      # Train(7)=0.3, Subway(8)=0.2
+    p_pos = np.array([0.9])                                        # binary says P(Train|pair)=0.9
+    q0 = rd.redistribute(P, p_pos, cls, 7, 8, 0.0)
+    assert np.allclose(q0, P)                                      # β=0 → unchanged
+    q1 = rd.redistribute(P, p_pos, cls, 7, 8, 1.0)
+    mass = 0.5
+    assert abs(q1[0, 6] - mass * 0.9) < 1e-9 and abs(q1[0, 7] - mass * 0.1) < 1e-9
+    assert abs((q1[0, 6] + q1[0, 7]) - mass) < 1e-9               # pair mass preserved
+    assert np.allclose(q1[0, [0, 1, 2, 3, 4, 5]], P[0, [0, 1, 2, 3, 4, 5]])  # others untouched
+
+
 def test_additive_logspace_equals_exp_multiply():
     """v4 submission consistency: the C1 decision is argmax(log p + b); submit_vote ships it as
     argmax(p · exp(b)). These MUST give the identical per-window label (so the submission == the
