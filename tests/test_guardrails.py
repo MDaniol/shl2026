@@ -355,6 +355,35 @@ def test_vit_spectrogram_image_shape_and_norm():
     assert de.min() > -1e-3 and de.max() < 1 + 1e-3          # de-normalized back to [0,1]
 
 
+def test_ceiling_diag_functions():
+    """Phase-0 diagnostics: top-2 oracle ≥ base, confusion-collapse corrects only in-pair swaps,
+    error-correlation Q∈[-1,1] (identical preds → Q=1), bootstrap CI brackets the point estimate."""
+    import numpy as np
+    import ceiling_diag as cd
+    cls = np.asarray(cd.CLASSES)
+    rng = np.random.default_rng(0)
+    n = 500
+    y = rng.integers(1, 9, n)
+    base = y.copy(); base[:100] = ((base[:100]) % 8) + 1                 # 100 wrong base preds
+    # one FM whose top-2 always contains the truth -> oracle recovers all
+    P = np.zeros((n, 8)); P[np.arange(n), y - 1] = 0.6; P[:, 0] += 0.1
+    orac = cd.top2_oracle(y, [P], base, cls)
+    assert cd.macro_f1(y, orac) >= cd.macro_f1(y, base)                 # oracle never worse
+    assert (orac == y).all()                                           # truth in top-2 here -> all correct
+    # confusion-collapse: a Train(7)->Subway(8) swap is corrected; a Car(5)->Walk(2) error is NOT
+    yy = np.array([7, 5, 3]); pp = np.array([8, 2, 3])
+    cc = cd.confusion_collapse(yy, pp, cd.PAIRS)
+    assert cc[0] == 7 and cc[1] == 2 and cc[2] == 3
+    # error-correlation
+    q_same = cd.error_correlation(y, base, base)
+    assert abs(q_same["Q"] - 1.0) < 1e-6 and q_same["double_fault"] >= 0
+    assert -1.0 - 1e-9 <= cd.error_correlation(y, base, y)["Q"] <= 1.0 + 1e-9
+    # bootstrap CI brackets the point estimate, deterministic
+    pt, lo, hi = cd.bootstrap_ci(y, base, cls, B=200, seed=0)
+    pt2, lo2, hi2 = cd.bootstrap_ci(y, base, cls, B=200, seed=0)
+    assert lo <= pt <= hi and (pt, lo, hi) == (pt2, lo2, hi2)
+
+
 def test_additive_bias_improves_macro_and_is_deterministic():
     """C1: the joint coordinate-descent additive log-bias must (a) be deterministic, (b) not REDUCE
     macro-F1 vs raw argmax on the data it's fit on (it's a maximizer), and (c) raise an under-emitted
