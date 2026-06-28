@@ -366,9 +366,9 @@ def test_combine_pdusza_keymap_and_tunew():
     # mask selects only Torso rows (idx 4,5) → (row, Torso=3)
     m = np.zeros(8, bool); m[4] = m[5] = True
     assert cp.val_keys(8, m) == [(0, 3), (1, 3)]
-    # tune_w: 'his' is perfect, 'ours' is wrong → w→0 wins; identical inputs → any w fine
+    # tune_w: 'his' is perfect, 'ours' is wrong → w→0 wins. y spans all 8 classes so perfect→macro 1.0
     cls = np.asarray(cp.CLASSES)
-    y = np.array([7, 8, 5, 6] * 10)
+    y = np.tile(np.arange(1, 9), 5)                                  # 40 obs, all 8 classes
     his = np.zeros((40, 8)); his[np.arange(40), y - 1] = 1.0          # perfect
     ours = np.zeros((40, 8)); ours[:, 0] = 1.0                        # always Still (wrong)
     w, m_ = cp.tune_w(ours, his, y, cls)
