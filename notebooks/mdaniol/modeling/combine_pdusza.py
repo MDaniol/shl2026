@@ -32,7 +32,13 @@ from metrics import class_report  # noqa: E402
 
 EPS = 1e-12
 N_TEST = 92726
-LOC_TO_HISPOS = {"Bag": 0, "Hand": 1, "Hips": 2, "Torso": 3}   # his §8 position_code
+# His position_code = index in his canonical POSITION_NAMES tuple — VERIFIED from his source
+# (shl_full_multibranch_head_cpu_resume.py:118 POSITION_NAMES, shl_dino_signal_preprocessing:212;
+# his §8 contract: Bag0 Hand1 Hips2 Torso3). DERIVED (not transcribed) so a Bag/Hips/Torso swap is
+# impossible. Labels are location-invariant (Bag[r]==Hips[r]==Torso[r]==Hand[r]) so the label assert
+# can't verify this — hence we derive it from his tuple + add the Hand-exclusion guard below.
+HIS_POSITION_NAMES = ("Bag", "Hand", "Hips", "Torso")
+LOC_TO_HISPOS = {loc: HIS_POSITION_NAMES.index(loc) for loc in LOCATIONS}
 
 
 def _norm(P):
@@ -106,9 +112,23 @@ def main() -> int:
         if key in our_map:
             our_rows.append(our_map[key]); his_rows.append(j)
     our_rows, his_rows = np.array(our_rows), np.array(his_rows)
+    # ALIGNMENT GUARDS (the label assert below is location-invariant, so it can't catch a position
+    # mis-map; these do). Our TEST is BHT-only (no Hand) by split construction → his Hand obs
+    # (position_code = Hand index) must NOT appear in the intersection, and exactly Bag/Hips/Torso must.
+    hand_code = HIS_POSITION_NAMES.index("Hand")
+    bht_codes = {HIS_POSITION_NAMES.index(L) for L in ("Bag", "Hips", "Torso")}
+    matched_pos = set(his_pos[his_rows].tolist())
+    assert hand_code not in matched_pos, (
+        f"his Hand (code {hand_code}) matched our BHT-only TEST → position mapping WRONG")
+    assert matched_pos == bht_codes, (
+        f"matched position_codes {matched_pos} != expected Bag/Hips/Torso {bht_codes} → mapping WRONG")
+    assert len(our_rows) >= 3000, f"intersection too small (n={len(our_rows)}) — likely a mapping/index error"
+    # his column convention sanity (col j = class j+1): all 8 classes present, none absurdly dominant
+    his_dist = np.bincount(his_p.argmax(1), minlength=8) / len(his_p)
+    assert his_dist.min() > 0 and his_dist.max() < 0.6, f"his holdout class dist off: {np.round(his_dist,3)}"
     ourP = our_test[our_rows]; hisP = _norm(his_p[his_rows]); y = ytest[our_rows]
     assert (his_y[his_rows] + 1 == y).all(), "label mismatch on shared slice — alignment is wrong!"
-    print(f"[combine] doubly-held-out slice: n={len(y)} "
+    print(f"[combine] doubly-held-out slice: n={len(y)} matched_pos={sorted(matched_pos)} "
           f"(his holdout {len(his_y)} ∩ our TEST {len(ytest)})", flush=True)
 
     # decorrelation + per-model macro on the slice
@@ -131,9 +151,15 @@ def main() -> int:
     our_te = np.load(args.our_test_proba); his_te = _norm(np.load(
         PD / "03_final_all_labelled_ensemble/primary_adapted_ensemble_probabilities.npy"))
     assert our_te.shape == his_te.shape == (N_TEST, 8), f"test shape {our_te.shape} vs {his_te.shape}"
+    # Both pipelines read the SAME official test file in canonical row order 0..92725 (his code asserts
+    # row_index 0..92725; ours reads test/all in file order) → 1:1 by construction. The argmax-agreement
+    # is a sanity guard: two honest ~0.83 models on ALIGNED rows agree well above chance (~0.15), but a
+    # row shuffle collapses agreement. (GOLD STANDARD for the FINAL submission: COMBINATION_CONTRACT §2
+    # raw-signal `--verify` — request his per-row raw signature for that; this guard is the cheap check.)
     agree = (our_te.argmax(1) == his_te.argmax(1)).mean()
-    assert agree > 0.5, f"test argmax agreement {agree:.3f} too low — rows likely MISALIGNED, abort"
-    print(f"[combine] hidden-test argmax agreement ours-vs-his = {agree:.3f} (alignment sane)", flush=True)
+    assert agree > 0.6, f"hidden-test argmax agreement {agree:.3f} too low — rows likely MISALIGNED, abort"
+    print(f"[combine] hidden-test argmax agreement ours-vs-his = {agree:.3f} (>0.6 ⇒ alignment sane; "
+          f"raw-signature --verify recommended before the final upload)", flush=True)
     blend_te = best_w * _norm(our_te) + (1 - best_w) * his_te
     pred = cls[blend_te.argmax(1)].astype(int)
     from shl2026 import write_submission
