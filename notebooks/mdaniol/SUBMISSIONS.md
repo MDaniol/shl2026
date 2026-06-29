@@ -64,3 +64,4 @@ the two.
 |---|---|---|---|---|---|---|
 | v1 | 2026-06-22 13:48 | moment-fusion(moment-small_V1)+cal | cda79f9 | AGH_predictions_v1_moment-fusion.txt | ~0.803 (temporal; bracket 0.725-0.803) | FIT-train + TUNE-calibrated; det |
 | v3 | 2026-06-26 17:27 | vote(utica_V2+mantisv2_V1)weighted+recal | 3c10d41 | AGH_predictions_v3_vote.txt | 0.8342 (temporal lock; E-VOTE-01 weighted+recal) | Phase-B; weights+recal on TUNE; det |
+| v3 | 2026-06-27 13:06 | vote(utica_V2+mantisv2_V1)weighted+recal | d89754e | AGH_predictions_v3_vote.txt | 0.8342 (temporal lock; E-VOTE-01 weighted+recal) | Phase-B; weights+recal on TUNE; det |
