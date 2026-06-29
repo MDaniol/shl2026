@@ -35,8 +35,10 @@ python -m pytest tests/test_guardrails.py -q || { echo "GUARDRAIL GATE FAILED" >
 [ -d "$PDUSZA_DIR/03_final_all_labelled_ensemble" ] || { echo "FATAL: $PDUSZA_DIR not staged (his 4 files)" >&2; exit 1; }
 
 echo "[$(date)] E-COMBINE EMBS=$EMBS PDUSZA=$PDUSZA_DIR on $(hostname)"
+HIS_FULLVAL="${HIS_FULLVAL:-$PDUSZA_DIR/03_SELECTED_ADAPTATION_full_official_validation_predictions.npz}"
 python "$M/combine_pdusza.py" --embs "$EMBS" --split "$SPLIT" \
     --feat-dir "$PROJECT_DIR/dataset_parquet_features" --emb-root "$PROJECT_DIR/embeddings" \
     --pdusza-dir "$PDUSZA_DIR" \
-    --our-test-proba "$PROJECT_DIR/notebooks/mdaniol/preds_test_v4_vote.npy"
+    --our-test-proba "$PROJECT_DIR/notebooks/mdaniol/preds_test_v4_vote.npy" \
+    $( [ -f "$HIS_FULLVAL" ] && echo "--his-fullval $HIS_FULLVAL" )
 echo "[$(date)] done — see COMBINE_PDUSZA_RESULTS.md + AGH_predictions_v5_combine.txt + MLflow combine_pdusza_v5."

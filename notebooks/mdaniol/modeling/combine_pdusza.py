@@ -73,6 +73,10 @@ def main() -> int:
     ap.add_argument("--feat-dir", type=Path, default=root / "dataset_parquet_features")
     ap.add_argument("--split", type=Path, default=_HERE / "artifacts" / "val_split_temporal.npy")
     ap.add_argument("--pdusza-dir", type=Path, required=True, help="his results root on group storage")
+    ap.add_argument("--his-fullval", type=Path, default=None,
+                    help="his dev-model predictions.npz on the FULL official validation (114788,8) — "
+                         "enables a v3/v4/his/v5 comparison on our FULL TEST (15129), comparable to "
+                         "0.834/0.838. NB his preds on his target_train rows are in-sample (optimistic).")
     ap.add_argument("--our-test-proba", type=Path,
                     default=root / "notebooks/mdaniol" / "preds_test_v4_vote.npy")
     ap.add_argument("--out", type=Path, default=root / "notebooks/mdaniol" / "AGH_predictions_v5_combine.txt")
@@ -153,6 +157,26 @@ def main() -> int:
           f"| Q={q:.3f} | paired Δ(blend−best)={dlt:+.4f} CI[{dlo:+.4f},{dhi:+.4f}] -> "
           f"{'KEEP' if keep else 'no gain'}", flush=True)
 
+    # --- OPTIONAL: blend on our FULL validation[TEST] for a 0.834/0.838-comparable number --------
+    full_line = ""
+    if args.his_fullval:
+        dfull = np.load(args.his_fullval)
+        his_full_map = {(int(r), int(p)): i for i, (r, p)
+                        in enumerate(zip(dfull["row_index"].tolist(), dfull["position_code"].tolist()))}
+        fr, fh = [], []
+        for k_our, key in enumerate(test_keys):                  # test_keys aligns with our_test/ytest
+            if key in his_full_map:
+                fr.append(k_our); fh.append(his_full_map[key])
+        fr, fh = np.array(fr), np.array(fh)
+        oF, hF, yF = our_test[fr], _norm(dfull["probabilities"][fh]), ytest[fr]
+        assert (dfull["y_true"][fh] + 1 == yF).all(), "full-TEST alignment label mismatch"
+        v4F = macro_f1(yF, cls[oF.argmax(1)])
+        hisF = macro_f1(yF, cls[hF.argmax(1)])
+        v5F = macro_f1(yF, cls[(best_w * oF + (1 - best_w) * hF).argmax(1)])
+        full_line = (f"FULL TEST (n={len(yF)}, all BHT; ⚠ his preds on his target_train rows are "
+                     f"in-sample → his/v5 optimistic): our v4={v4F:.4f} his={hisF:.4f} **v5(w={best_w:.2f})={v5F:.4f}**")
+        print(f"[combine] {full_line}", flush=True)
+
     # --- blend the HIDDEN TEST (both official order) -> v5 -------------------------------------
     our_te = np.load(args.our_test_proba); his_te = _norm(np.load(
         PD / "03_final_all_labelled_ensemble/primary_adapted_ensemble_probabilities.npy"))
@@ -178,6 +202,7 @@ def main() -> int:
              f"slice n={len(y)}; ours={our_m:.4f} his={his_m:.4f} **blend(w={best_w:.2f})={blend_m:.4f}** "
              f"Q={q:.3f}; paired Δ={dlt:+.4f} CI[{dlo:+.4f},{dhi:+.4f}] **{'KEEP v5' if keep else 'no gain'}**.",
              f"hidden-test argmax-agreement={agree:.3f}; v5 dist={ {int(c): round(n/len(pred),3) for c,n in zip(uniq,cnt)} }",
+             (f"\n**{full_line}**" if full_line else ""),
              "", "| model | slice macro | per-class F1 |", "|---|---|---|",
              f"| ours(v4) | {our_m:.4f} | " + " ".join(f"{k[:2]}={d2['f1']:.2f}" for k, d2 in class_report(y, pa)['per_class'].items()) + " |",
              f"| his | {his_m:.4f} | " + " ".join(f"{k[:2]}={d2['f1']:.2f}" for k, d2 in class_report(y, pb)['per_class'].items()) + " |",
