@@ -332,3 +332,9 @@ classes/geometry/order; 92,726 test rows 1:1).
   `sbatch hpc/combine_pdusza_helios.sbatch`. Needs our `preds_test_v4_vote.npy`.
 - **Traceability:** MLflow `combine_pdusza_v5` (macro + w + Q + paired CI + per-class) +
   `COMBINE_PDUSZA_RESULTS.md` + `AGH_predictions_v5_combine.txt`; this pre-reg; diary conclusion on completion.
+- **OUTCOME 2026-06-29: KEEP (v5).** On the doubly-held-out slice (n=2265): ours 0.7214 / his 0.7063 /
+  **blend(w=0.58) 0.7547**, paired Δ=+0.0334 CI[+0.0215,+0.0457] (significant). Decorrelation Q=0.806;
+  per-class gains on Bike/Car/Bus/Train/Subway (his Subway 0.93 complements our Car/Still). 0.75 absolute
+  is a small-slice/Run-collapse artifact — the +0.033 *relative* gain over v4 is the signal. v5 =
+  `AGH_predictions_v5_combine.txt`; first lever to beat v4 (0.838). TODO: raw-signature `--verify`
+  (final upload) + his full-validation adapted probs for a full-TEST-comparable number.

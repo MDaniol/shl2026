@@ -293,6 +293,20 @@ sbatch notebooks/mdaniol/hpc/probe_fusion_ares.sbatch    # -> BAKEOFF_SPLIT.md (
       exploits. Paper point on the invariance/in-distribution trade-off.
   - **Net:** internal levers exhausted (only C1 held, +0.004 → v4 0.838); the honest IMU-only per-window
     ceiling holds; **the decorrelated colleague combine is the only remaining real path to ~0.85.**
+- **2026-06-29 — E-COMBINE CONCLUDED → KEEP (v5).** Soft-vote of our v4 ⊕ collaborator pdusza's frozen
+  DINoV2-on-spectrogram-images pipeline (his code passed a full HAR-agent leakage+compatibility audit;
+  his honest `target_holdout` macro-F1 = **0.8336** reproduced exactly, his 0.899 = resubstitution).
+  Leakage-clean: `w` tuned on the slice held out by BOTH — (his `target_holdout`) ∩ (our
+  `validation[TEST]`), n=2265, position mapping derived+verified from his `POSITION_NAMES` tuple
+  (matched_pos={Bag,Hips,Torso}, Hand-excluded). **Result:** ours 0.7214 / his 0.7063 / **blend(w=0.58)
+  0.7547**, **paired Δ=+0.0334 CI[+0.0215,+0.0457]** (significant). NB the 0.75 absolute is a small-slice
+  artifact (Run F1=0 on ~43 windows); the meaningful signal is the +0.033 *relative* gain, driven by
+  genuine decorrelation (his Subway 0.93 vs our 0.79; ours Car/Still; blend wins Bike/Car/Bus/Train/
+  Subway). **v5 = `AGH_predictions_v5_combine.txt`** (the first lever to beat v4; expected full-TEST
+  ≈0.84–0.85). Validates the decorrelation thesis: two same-family FMs DILUTE (E-FMDIV), but an
+  independent competent pipeline (different representation AND model class — DINoV2-MLP vs TS-FM-trees)
+  LIFTS. **Remaining:** (a) gold-standard raw-signature `--verify` before final upload (colleague ask);
+  (b) his adapted preds on our full `validation[TEST]` for a full-TEST-comparable v5 number.
 
 ## Runbook — soft-voting head (job `shl-vote`, registered 2026-06-26) [shipped 2026-06-26 as v3]
 Goal: does a calibrated late-fusion vote of the bake-off top-2 beat the best single FM on the
