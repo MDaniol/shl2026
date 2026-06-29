@@ -48,6 +48,51 @@ shuffled single file, no temporal smoothing / no location label).
 
 ---
 
+## 1b. Each step explained (keyed to the diagram)
+
+**Input**
+- **`RAW` — IMU window.** One 5-second window = 500 samples × 9 channels (accelerometer, gyroscope,
+  magnetometer, each x/y/z) at 100 Hz. This is the unit of classification; both lanes start here.
+
+**AGH lane (ours)**
+- **`FM` — Frozen time-series foundation models.** The raw window is passed (forward-only) through two
+  pretrained TS-FMs, **UTICA** and **MantisV2**, which output a fixed embedding vector per window. The
+  models are **never trained/fine-tuned** — they're feature extractors. Two FMs of different families
+  give complementary views.
+- **`HC` — 520 handcrafted features.** In parallel, classic signal-processing descriptors per window:
+  spectral band energies/entropy, magnetometer statistics, jerk, autocorrelation, time-domain stats.
+  These encode physics the FM might miss.
+- **`FUSE` — concatenate.** For each FM, glue its embedding together with the 520 features into one long
+  feature vector (`embedding ⊕ 520`). This is the input to the classifier.
+- **`LGBM` — LightGBM head + calibration.** A gradient-boosted decision-tree classifier maps the fused
+  vector → 8 class probabilities, then a **per-class calibration** rescales them so the probabilities are
+  trustworthy. (One LightGBM per FM.)
+- **`VOTE` — soft-vote + decision.** The two calibrated probability vectors (UTICA, MantisV2) are
+  averaged with learned weights (**weighted soft-vote**), then a small **additive-logit decision rule**
+  (v4) nudges the per-class thresholds to maximize macro-F1 (e.g. recovers under-predicted *Run*).
+- **`P_ours` — our probabilities.** The result: a `92726 × 8` matrix — one calibrated probability per
+  class, per hidden-test window. **This alone is v4 = 0.838.**
+
+**Collaborator lane (his)**
+- **`IMG` — spectrogram images.** The same raw window is turned into **6 image representations**
+  (STFT, CWT, GAF — each computed on the signal and its 2nd time-gradient), 3×224×224 RGB images where
+  R/G/B = acc/gyr/mag.
+- **`DINO` — Frozen DINoV2.** Each image is passed (forward-only) through pretrained **DINoV2-base**; the
+  embedding = its CLS token concatenated with the mean of its patch tokens (1536-d) — for all 6 branches.
+  DINoV2 is **never fine-tuned**.
+- **`MLP` — Gated multi-branch MLP.** A small trainable network encodes each of the 6 branch embeddings,
+  learns per-window weights to **gate** (combine) them, and outputs 8 class probabilities.
+- **`P_his` — his probabilities.** A `92726 × 8` matrix. **This alone is his 0.834.**
+
+**The combine (v5)**
+- **`BLEND` — late-fusion soft-vote.** We take the two probability matrices and average them per window:
+  `P = w·P_ours + (1−w)·P_his`, with a **single weight `w = 0.58`** (58% ours, 42% his). We combine the
+  *outputs*, not the models — so trees-vs-MLP is irrelevant. `w` is tuned leakage-safely (see §4).
+- **`V5` — submission.** Take `argmax` over the 8 blended probabilities per window → final label (1..8),
+  written as the `92726 × 500` submission file. **Expected ~0.84–0.85.**
+
+---
+
 ## 2. The two lanes, briefly
 
 | | **AGH lane (ours)** | **Collaborator lane (his)** |
