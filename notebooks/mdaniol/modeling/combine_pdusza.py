@@ -122,7 +122,13 @@ def main() -> int:
         f"his Hand (code {hand_code}) matched our BHT-only TEST → position mapping WRONG")
     assert matched_pos == bht_codes, (
         f"matched position_codes {matched_pos} != expected Bag/Hips/Torso {bht_codes} → mapping WRONG")
-    assert len(our_rows) >= 3000, f"intersection too small (n={len(our_rows)}) — likely a mapping/index error"
+    # The clean slice = (his ~20% holdout rows) ∩ (our ~20% TEST rows) × the 3 BHT positions ≈ low
+    # thousands by construction (two independent partitions). >=800 catches a broken mapping (~0) while
+    # allowing the legitimate overlap; matched_pos above already verified the placement decode.
+    assert len(our_rows) >= 800, f"intersection too small (n={len(our_rows)}) — likely a mapping/index error"
+    if len(our_rows) < 5000:
+        print(f"[combine] NOTE: slice n={len(our_rows)} is small → per-class F1 (esp. Run ~1.9%) is "
+              f"noisy; the scalar w + paired gate are still sound.", flush=True)
     # his column convention sanity (col j = class j+1): all 8 classes present, none absurdly dominant
     his_dist = np.bincount(his_p.argmax(1), minlength=8) / len(his_p)
     assert his_dist.min() > 0 and his_dist.max() < 0.6, f"his holdout class dist off: {np.round(his_dist,3)}"
