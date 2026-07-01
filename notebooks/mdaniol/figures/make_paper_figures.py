@@ -40,7 +40,7 @@ def perclass_bars(y_idx, preds: dict, out, title="Per-class F1 on the doubly-hel
     f1s = {n: per_class_f1(y_idx, p, K) for n, p in preds.items()}
     x = np.arange(K); wbar = 0.8 / len(names)
     fig, ax = plt.subplots(figsize=(10, 4.8))
-    colors = {"ours (v4)": "#3b82f6", "his (Lane B)": "#22c55e", "v5 blend": "#a855f7"}
+    colors = {"Lane A (time-series, v4)": "#3b82f6", "Lane B (vision)": "#22c55e", "v5 (blend)": "#a855f7"}
     for i, n in enumerate(names):
         f = f1s[n]
         # legend reports both the 8-class macro and the macro over classes actually present
@@ -79,7 +79,7 @@ def cm_pair(yA, pA, yB, pB, mA, mB, out, dpi=300, show_title=True):
     """Side-by-side confusion matrices on the same slice (Lane A vs Lane B)."""
     from plot_cm import confusion
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.8))
-    for ax, (y, p, tag) in zip(axes, [(yA, pA, "Lane A — our v4"), (yB, pB, "Lane B — DINoV2+MLP")]):
+    for ax, (y, p, tag) in zip(axes, [(yA, pA, "Lane A — time-series"), (yB, pB, "Lane B — vision")]):
         M = confusion(y, p); counts = M.sum(1); Mn = M / np.clip(counts[:, None], 1, None)
         f1 = per_class_f1(y, p); present = counts > 0
         mp = float(f1[present].mean()) if present.any() else 0.0
@@ -135,14 +135,14 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         "",
         "## Figure captions",
         "",
-        f"**cm_laneA_v4_test.png** — Confusion matrix (row-normalized recall, %) of the AGH time-series "
-        f"lane (v4: frozen UTICA + Mantis-V2 embeddings concatenated with 520 hand-crafted features, "
+        f"**cm_laneA_v4_test.png** — Confusion matrix (row-normalized recall, %) of the time-series lane "
+        f"(Lane A; v4: frozen UTICA + Mantis-V2 embeddings concatenated with 520 hand-crafted features, "
         f"per-class-calibrated LightGBM soft-vote) on the held-out internal TEST set "
         f"(Users 2–3, Bag/Hips/Torso, per-window; n = {nT:,}). Macro-F1 = {mT:.3f}. Residual confusion "
         f"concentrates in the Train↔Subway and Bike↔Subway pairs.",
         "",
-        (f"**cm_laneB_holdout.png** — Confusion matrix (row-normalized recall, %) of the collaborator "
-         f"vision lane (frozen DINoV2 over STFT/CWT/GAF spectrogram images, gated multi-branch MLP) on its "
+        (f"**cm_laneB_holdout.png** — Confusion matrix (row-normalized recall, %) of the vision-based lane "
+         f"(Lane B; frozen DINoV2 over STFT/CWT/GAF spectrogram images, gated multi-branch MLP) on its "
          f"held-out target set (n = {nB:,}). Macro-F1 = {mB:.3f}. The error structure is complementary to "
          f"Lane A (stronger on Subway, weaker on Bus/Train), which motivates the late-fusion blend."
          if mB is not None else
@@ -152,7 +152,7 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         f"doubly-held-out slice (windows held out from training by BOTH pipelines; n = {nS:,}). Bars are "
         f"annotated with true support n. Run is absent from this intersection (n = 0) and Bus is small "
         f"(n = {nBus}), so those are omitted / noisy; the full per-class behaviour is given by the Lane-A "
-        f"and Lane-B confusion matrices. Over the classes present, v5 (macro {mpV5:.3f}) improves on v4 "
+        f"and Lane-B confusion matrices. Over the classes present, v5 (macro {mpV5:.3f}) improves on Lane A "
         f"({mpOur:.3f}) and Lane B ({mpHis:.3f}), with the largest gains on the confusable vehicle/rail "
         f"classes (Bus, Train).",
         "",
@@ -164,11 +164,11 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         "",
         "| model | macro-F1 (8-class) | macro-F1 (present) | per-class F1 (present) |",
         "|---|---|---|---|",
-        prow("v4 (ours)", fOur, mOur, mpOur),
-        prow("his (Lane B)", fHis, mHis, mpHis),
-        prow(f"v5 blend (w={w:.3f})", fV5, mV5, mpV5),
+        prow("Lane A (v4, time-series)", fOur, mOur, mpOur),
+        prow("Lane B (vision)", fHis, mHis, mpHis),
+        prow(f"v5 (blend, w={w:.3f})", fV5, mV5, mpV5),
         "",
-        f"v5 vs v4: paired-bootstrap Δ(8-class macro-F1) = {dlt:+.4f}, 95% CI [{dlo:+.4f}, {dhi:+.4f}] "
+        f"v5 vs Lane A (v4): paired-bootstrap Δ(8-class macro-F1) = {dlt:+.4f}, 95% CI [{dlo:+.4f}, {dhi:+.4f}] "
         f"(excludes 0 → significant). Run is absent (0 windows) and Bus small ({nBus}) in this intersection, "
         f"which deflates the 8-class column; the present-class column and the full-set confusion matrices are "
         f"the representative numbers.",
@@ -177,9 +177,9 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         "",
         "| lane | eval set | n | macro-F1 |",
         "|---|---|---|---|",
-        f"| Lane A (v4, ours) | internal TEST (Bag/Hips/Torso) | {nT:,} | {mT:.3f} |",
-        (f"| Lane B (his DINoV2) | target holdout | {nB:,} | {mB:.3f} |"
-         if mB is not None else "| Lane B (his DINoV2) | target holdout | — | — |"),
+        f"| Lane A (time-series, v4) | internal TEST (Bag/Hips/Torso) | {nT:,} | {mT:.3f} |",
+        (f"| Lane B (vision, DINoV2) | target holdout | {nB:,} | {mB:.3f} |"
+         if mB is not None else "| Lane B (vision, DINoV2) | target holdout | — | — |"),
         "",
     ]
     path.write_text("\n".join(L) + "\n")
@@ -213,7 +213,7 @@ def main() -> int:
     # --- Lane A (our v4) confusion matrix on the full internal TEST (all classes present) ---
     yT = _to_idx(d["test_y"], labels); pT = d["test_ourP"].argmax(1)
     mT = float(per_class_f1(yT, pT).mean())
-    plot_cm(yT, pT, "Lane A (our v4) — internal TEST",
+    plot_cm(yT, pT, "Lane A — time-series lane (v4) — internal TEST",
             a.out_dir / "cm_laneA_v4_test.png", dpi=a.dpi, show_title=st)
     produced.append(a.out_dir / "cm_laneA_v4_test.png")
     print(f"Lane A v4 (TEST n={len(yT)}) macro-F1={mT:.4f}")
@@ -225,7 +225,7 @@ def main() -> int:
         yB = np.asarray(h["y_true"])
         pB = h["probabilities"].argmax(1) if "probabilities" in h else np.asarray(h["y_pred"])
         mB = float(per_class_f1(yB, pB).mean()); nB = int(len(yB))
-        plot_cm(yB, pB, "Lane B (DINoV2 + MLP) — holdout",
+        plot_cm(yB, pB, "Lane B — vision lane (DINoV2 + MLP) — holdout",
                 a.out_dir / "cm_laneB_holdout.png", dpi=a.dpi, show_title=st)
         produced.append(a.out_dir / "cm_laneB_holdout.png")
         print(f"Lane B (holdout n={nB}) macro-F1={mB:.4f}")
@@ -242,7 +242,7 @@ def main() -> int:
     fOur, mOur, mpOur = stats(pOur); fHis, mHis, mpHis = stats(pHis); fV5, mV5, mpV5 = stats(pV5)
     boot = paired_boot(yS, pV5, pOur if mOur >= mHis else pHis)
 
-    perclass_bars(yS, {"ours (v4)": pOur, "his (Lane B)": pHis, "v5 blend": pV5},
+    perclass_bars(yS, {"Lane A (time-series, v4)": pOur, "Lane B (vision)": pHis, "v5 (blend)": pV5},
                   a.out_dir / "perclass_f1_slice.png", dpi=a.dpi, show_title=st)
     weight_sweep(d["w_grid"], d["w_macro"], w, a.out_dir / "weight_sweep.png", dpi=a.dpi, show_title=st)
     produced += [a.out_dir / "perclass_f1_slice.png", a.out_dir / "weight_sweep.png"]
