@@ -67,7 +67,8 @@ def weight_sweep(wg, wm, w_star, out, dpi=300, show_title=True):
     ax.axvline(w_star, ls="--", color="#666", label=f"w* = {w_star:.3f}")
     j = int(np.argmax(wm))
     ax.scatter([wg[j]], [wm[j]], color="#ef4444", zorder=5, label=f"max macro-F1 = {wm[j]:.4f}")
-    ax.set_xlabel("blend weight w   (P = w·P_LaneA + (1−w)·P_LaneB)"); ax.set_ylabel("macro-F1 (slice)")
+    ax.set_xlabel("blend weight w   (P = w·P_LaneA + (1−w)·P_LaneB)")
+    ax.set_ylabel("macro-F1 over present classes (slice)")
     if show_title:
         ax.set_title("Blend-weight sweep on the doubly-held-out slice")
     ax.legend(fontsize=9); ax.grid(alpha=0.3)
@@ -178,10 +179,10 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         f"({mpOur:.3f}) and Lane B ({mpHis:.3f}), with the largest gains on the confusable vehicle/rail "
         f"classes (Bus, Train).",
         "",
-        f"**weight_sweep.png** — Macro-F1 on the doubly-held-out slice as a function of the blend weight w "
-        f"(P = w·P_LaneA + (1−w)·P_LaneB); optimum at w = {w:.3f}. w is tuned only on this doubly-held-out "
-        f"slice, so the fusion introduces no leakage."
-        f"so the fusion introduces no leakage.",
+        f"**weight_sweep.png** — Macro-F1 (over the classes present in the slice) as a function of the blend "
+        f"weight w (P = w·P_LaneA + (1−w)·P_LaneB) on the doubly-held-out slice; optimum at w = {w:.3f} "
+        f"(macro-F1 {mpV5:.3f}). w is tuned only on this doubly-held-out slice, so the fusion introduces no "
+        f"leakage.",
         "",
         f"## Results — doubly-held-out slice (n = {nS:,}; {npresent} of 8 classes present)",
         "",
@@ -271,7 +272,12 @@ def main() -> int:
 
     perclass_bars(yS, {"Lane A (time-series, v4)": pOur, "Lane B (vision)": pHis, "v5 (blend)": pV5},
                   a.out_dir / "perclass_f1_slice.png", dpi=a.dpi, show_title=st)
-    weight_sweep(d["w_grid"], d["w_macro"], w, a.out_dir / "weight_sweep.png", dpi=a.dpi, show_title=st)
+    # recompute the sweep on the present-class macro so it matches the reported metric (the stored
+    # w_macro is the 8-class macro with Run=0; identical argmax, but scaled down by 7/8 → misleading peak)
+    wg = d["w_grid"]
+    wm_present = np.array([per_class_f1(yS, (ww * ourP + (1 - ww) * hisP).argmax(1))[present].mean()
+                           for ww in wg])
+    weight_sweep(wg, wm_present, w, a.out_dir / "weight_sweep.png", dpi=a.dpi, show_title=st)
     produced += [a.out_dir / "perclass_f1_slice.png", a.out_dir / "weight_sweep.png"]
     if a.slice_cm:
         plot_cm(yS, pV5, f"v5 blend (w={w:.3f}) — doubly-held-out slice",
