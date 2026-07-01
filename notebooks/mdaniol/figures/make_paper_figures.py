@@ -43,8 +43,8 @@ def perclass_bars(y_idx, preds: dict, out, title="Per-class F1 on the doubly-hel
     colors = {"Lane A (time-series, v4)": "#3b82f6", "Lane B (vision)": "#22c55e", "v5 (blend)": "#a855f7"}
     for i, n in enumerate(names):
         f = f1s[n]
-        # legend reports both the 8-class macro and the macro over classes actually present
-        lbl = f"{n} (macro {f.mean():.3f} · present {f[present].mean():.3f})"
+        # legend reports the macro over the classes actually present (an absent class would only add a 0)
+        lbl = f"{n} (macro-F1 {f[present].mean():.3f} over {int(present.sum())} present classes)"
         ax.bar(x + i * wbar, f, wbar, label=lbl, color=colors.get(n, None))
     # flag absent classes so the empty gap reads as "no data", not "F1 = 0"
     for k in range(K):
@@ -105,14 +105,19 @@ def cm_pair(yA, pA, yB, pB, mA, mB, out, dpi=300, show_title=True):
     print("saved:", out)
 
 
-def paired_boot(y, p_new, p_base, B=2000, seed=0):
-    """Percentile paired bootstrap of the 8-class macro-F1 difference (p_new − p_base) over windows."""
+def paired_boot(y, p_new, p_base, present=None, B=2000, seed=0):
+    """Percentile paired bootstrap of the macro-F1 difference (p_new − p_base) over windows.
+    Averaged over the classes present in the slice (a class absent for every model would only add a
+    constant 0 and rescale the metric, so it is excluded to keep the number meaningful)."""
     rng = np.random.default_rng(seed); n = len(y)
-    point = per_class_f1(y, p_new).mean() - per_class_f1(y, p_base).mean()
+    sel = np.ones(8, bool) if present is None else present
+    def macro(yy, pp):
+        return per_class_f1(yy, pp)[sel].mean()
+    point = macro(y, p_new) - macro(y, p_base)
     diffs = np.empty(B)
     for b in range(B):
         idx = rng.integers(0, n, n)
-        diffs[b] = per_class_f1(y[idx], p_new[idx]).mean() - per_class_f1(y[idx], p_base[idx]).mean()
+        diffs[b] = macro(y[idx], p_new[idx]) - macro(y[idx], p_base[idx])
     lo, hi = np.percentile(diffs, [2.5, 97.5])
     return float(point), float(lo), float(hi)
 
@@ -122,9 +127,11 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
     fOur, mOur, mpOur = our; fHis, mHis, mpHis = his; fV5, mV5, mpV5 = v5; dlt, dlo, dhi = boot
     nBus = int(counts[5])
 
+    npresent = int(present.sum())
+
     def prow(tag, f, m, mp):
         pc = " ".join(f"{CLASSES[k][:2]}={f[k]:.2f}" for k in range(8) if present[k])
-        return f"| {tag} | {m:.3f} | {mp:.3f} | {pc} |"
+        return f"| {tag} | {mp:.3f} | {pc} |"
 
     L = [
         "# SHL-2026 — figure captions & results (editable draft)",
@@ -161,18 +168,22 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         f"slice, so the fusion introduces no leakage."
         f"so the fusion introduces no leakage.",
         "",
-        f"## Results — doubly-held-out slice (n = {nS:,})",
+        f"## Results — doubly-held-out slice (n = {nS:,}; {npresent} of 8 classes present)",
         "",
-        "| model | macro-F1 (8-class) | macro-F1 (present) | per-class F1 (present) |",
-        "|---|---|---|---|",
+        f"Macro-F1 is averaged over the {npresent} classes present in this slice. Run (0 windows) is not scored "
+        f"here — it would only contribute a forced 0 to every model and is fully characterised by the full-set "
+        f"Lane-A / Lane-B confusion matrices (Run F1 ≈ 0.94 on the internal TEST).",
+        "",
+        f"| model | macro-F1 ({npresent} present classes) | per-class F1 |",
+        "|---|---|---|",
         prow("Lane A (v4, time-series)", fOur, mOur, mpOur),
         prow("Lane B (vision)", fHis, mHis, mpHis),
         prow(f"v5 (blend, w={w:.3f})", fV5, mV5, mpV5),
         "",
-        f"v5 vs Lane A (v4): paired-bootstrap Δ(8-class macro-F1) = {dlt:+.4f}, 95% CI [{dlo:+.4f}, {dhi:+.4f}] "
-        f"(excludes 0 → significant). Run is absent (0 windows) and Bus small ({nBus}) in this intersection, "
-        f"which deflates the 8-class column; the present-class column and the full-set confusion matrices are "
-        f"the representative numbers.",
+        f"v5 vs Lane A (v4): paired-bootstrap Δ(macro-F1 over present classes) = {dlt:+.4f}, "
+        f"95% CI [{dlo:+.4f}, {dhi:+.4f}] (excludes 0 → statistically significant). Bus is small "
+        f"({nBus} windows) in this intersection, so its bar is noisy; the full-set confusion matrices are the "
+        f"authoritative per-class evidence.",
         "",
         "## Lane summary (full held-out sets, all classes present)",
         "",
@@ -241,7 +252,7 @@ def main() -> int:
     def stats(p):
         f = per_class_f1(yS, p); return f, float(f.mean()), float(f[present].mean())
     fOur, mOur, mpOur = stats(pOur); fHis, mHis, mpHis = stats(pHis); fV5, mV5, mpV5 = stats(pV5)
-    boot = paired_boot(yS, pV5, pOur if mOur >= mHis else pHis)
+    boot = paired_boot(yS, pV5, pOur if mpOur >= mpHis else pHis, present=present)
 
     perclass_bars(yS, {"Lane A (time-series, v4)": pOur, "Lane B (vision)": pHis, "v5 (blend)": pV5},
                   a.out_dir / "perclass_f1_slice.png", dpi=a.dpi, show_title=st)
