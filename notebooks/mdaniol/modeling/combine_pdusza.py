@@ -80,6 +80,10 @@ def main() -> int:
     ap.add_argument("--our-test-proba", type=Path,
                     default=root / "notebooks/mdaniol" / "preds_test_v4_vote.npy")
     ap.add_argument("--out", type=Path, default=root / "notebooks/mdaniol" / "AGH_predictions_v5_combine.txt")
+    ap.add_argument("--dump-eval", type=Path, default=None,
+                    help="npz path to save HONEST labelled arrays for paper figures: the doubly-held-out "
+                         "slice (y, ourP, hisP, w-sweep) + our v4 on the full internal TEST (y, ourP). "
+                         "The inflated full-val set is deliberately NOT dumped.")
     args = ap.parse_args()
     cls = np.asarray(CLASSES)
     PD = args.pdusza_dir
@@ -157,6 +161,20 @@ def main() -> int:
           f"| Q={q:.3f} | paired Δ(blend−best)={dlt:+.4f} CI[{dlo:+.4f},{dhi:+.4f}] -> "
           f"{'KEEP' if keep else 'no gain'}", flush=True)
 
+    # --- OPTIONAL: dump HONEST arrays for paper figures (CMs, per-class bars, w-sweep) ------------
+    if args.dump_eval:
+        wg = np.linspace(0.0, 1.0, 41)
+        wm = np.array([macro_f1(y, cls[(w * ourP + (1 - w) * hisP).argmax(1)]) for w in wg])
+        np.savez_compressed(
+            args.dump_eval,
+            slice_y=y.astype(np.int16), slice_ourP=ourP.astype(np.float32),
+            slice_hisP=hisP.astype(np.float32), w=np.float32(best_w),
+            w_grid=wg.astype(np.float32), w_macro=wm.astype(np.float32),
+            test_y=ytest.astype(np.int16), test_ourP=our_test.astype(np.float32),
+            classes=cls.astype(np.int16))
+        print(f"[combine] dumped honest eval arrays -> {args.dump_eval} "
+              f"(slice n={len(y)}, full-TEST n={len(ytest)})", flush=True)
+
     # --- OPTIONAL: blend on our FULL validation[TEST] for a 0.834/0.838-comparable number --------
     full_line = ""
     if args.his_fullval:
@@ -220,6 +238,8 @@ def main() -> int:
         run.log_metrics({"macro_f1": blend_m, "ours_slice": our_m, "his_slice": his_m, "w": best_w,
                          "Q": float(q), "paired_diff": dlt, "paired_ci_lo": dlo, "test_agreement": float(agree)})
         run.log_artifact(md); run.log_artifact(args.out)
+        if args.dump_eval and args.dump_eval.exists():
+            run.log_artifact(args.dump_eval)
     print("[combine] MLflow tracked.", flush=True)
     return 0 if rep.ok else 1
 
