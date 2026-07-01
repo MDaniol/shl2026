@@ -76,14 +76,7 @@ CAP("Figure 2 (cm_laneB_holdout.png)",
     f"STFT/CWT/GAF spectrogram images, gated multi-branch MLP) on its held-out target set (n = {NB}). "
     f"Macro-F1 = {MB:.3f}. Its error structure is complementary to Lane A (stronger on Subway, weaker on "
     "Bus/Train), which motivates the late-fusion blend.")
-CAP("Figure 3 (perclass_f1_slice.png)",
-    f"Per-class F1 of the two lanes and their late-fusion blend (v5) on the doubly-held-out slice (windows "
-    f"held out from training by BOTH lanes; n = {NS}). Bars are annotated with true support n; Run is "
-    "absent from this intersection (n = 0) and Bus is small (n = 33), so those are omitted / noisy — the "
-    "full per-class behaviour is given by the Lane-A and Lane-B confusion matrices. Over the classes "
-    f"present, v5 (macro-F1 {PRES['V5']:.3f}) improves on Lane A ({PRES['A']:.3f}) and Lane B "
-    f"({PRES['B']:.3f}), with the largest gains on the confusable vehicle/rail classes (Bus, Train).")
-CAP("Figure 4 (weight_sweep.png)",
+CAP("Figure 3 (weight_sweep.png)",
     "Macro-F1 (over the classes present in the slice) as a function of the blend weight w "
     f"(P = w·P_LaneA + (1−w)·P_LaneB) on the doubly-held-out slice; optimum at w = {W} "
     f"(macro-F1 {PRES['V5']:.3f}), above both single lanes (Lane A {PRES['A']:.3f} at w = 1, Lane B "
@@ -117,11 +110,9 @@ BUL("Two per-lane confusion matrices (Figs 1–2).", "Each lane is evaluated on 
     "where all eight classes are present, giving an honest, complete per-class picture. Placed side by "
     "side they also make the core argument visible: the two lanes make different errors (Lane B is "
     "stronger on Subway, Lane A on Car), which is precisely what makes their fusion pay off.")
-BUL("Per-class F1 bars (Fig 3).", "This is where the fusion result is shown — it makes the "
-    "Lane-A-vs-Lane-B-vs-v5 comparison per class explicit and, unlike a confusion matrix, degrades "
-    "gracefully when a class is under- or un-sampled (the bar simply becomes a gap).")
-BUL("Blend-weight sweep (Fig 4).", "Documents the single hyper-parameter of the fusion (w) and shows the "
-    f"optimum is a smooth interior maximum (w = {W}) that beats either lane alone, tuned on leakage-clean data.")
+BUL("Blend-weight sweep (Fig 3).", "Documents the single hyper-parameter of the fusion (w) and shows the "
+    f"optimum is a smooth interior maximum (w = {W}) that beats either lane alone, tuned on leakage-clean data. "
+    "The per-class comparison of the two lanes and the blend is given in the results table (Section 2).")
 
 H("B. Why there is no v5 / final confusion matrix", 12)
 P("A confusion matrix requires ground-truth labels on a set that both lanes can be scored on. For the "
@@ -138,7 +129,7 @@ BUL("That intersection does not contain every class.", "Both lanes split their d
     "windows). Bus survives with only 33 windows.")
 P("A confusion matrix with a missing class is both hard to read and easy to misinterpret as an "
   "incomplete evaluation, so we do not present one. Instead we report the two lanes' full-set confusion "
-  "matrices (all classes present) and express the fusion result as a per-class bar chart plus a "
+  "matrices (all classes present) and express the fusion result as a per-class F1 table plus a "
   "significance test (paired bootstrap over the classes present in the doubly-held-out slice). This keeps "
   "every figure complete and every number leakage-clean.")
 
