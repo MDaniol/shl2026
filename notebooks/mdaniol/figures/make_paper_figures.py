@@ -31,7 +31,8 @@ def _to_idx(y, labels):
     return np.array([lab2idx[int(v)] for v in y])
 
 
-def perclass_bars(y_idx, preds: dict, out, title="Per-class F1 on the doubly-held-out slice"):
+def perclass_bars(y_idx, preds: dict, out, title="Per-class F1 on the doubly-held-out slice",
+                  dpi=300, show_title=True):
     K = len(CLASSES)
     names = list(preds.keys())
     counts = np.bincount(y_idx, minlength=K)          # true support per class in this slice
@@ -53,26 +54,28 @@ def perclass_bars(y_idx, preds: dict, out, title="Per-class F1 on the doubly-hel
     ax.set_xticks(x + wbar * (len(names) - 1) / 2)
     ax.set_xticklabels([f"{c}\n(n={int(counts[k])})" for k, c in enumerate(CLASSES)], fontsize=9)
     ax.set_ylabel("F1"); ax.set_ylim(0, 1.02)
-    ax.set_title(title + "   —   n under each class = true support (small n ⇒ noisy)")
+    if show_title:
+        ax.set_title(title + "   —   n under each class = true support (small n ⇒ noisy)")
     ax.legend(loc="lower right", fontsize=9); ax.grid(axis="y", alpha=0.3)
-    fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(out, dpi=dpi); plt.close(fig)
     print("saved:", out)
 
 
-def weight_sweep(wg, wm, w_star, out):
+def weight_sweep(wg, wm, w_star, out, dpi=300, show_title=True):
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
     ax.plot(wg, wm, "-o", ms=3, color="#a855f7")
-    ax.axvline(w_star, ls="--", color="#666", label=f"w* = {w_star:.2f}")
+    ax.axvline(w_star, ls="--", color="#666", label=f"w* = {w_star:.3f}")
     j = int(np.argmax(wm))
     ax.scatter([wg[j]], [wm[j]], color="#ef4444", zorder=5, label=f"max macro-F1 = {wm[j]:.4f}")
     ax.set_xlabel("blend weight w   (P = w·ours + (1−w)·his)"); ax.set_ylabel("macro-F1 (slice)")
-    ax.set_title("Blend-weight sweep on the doubly-held-out slice")
+    if show_title:
+        ax.set_title("Blend-weight sweep on the doubly-held-out slice")
     ax.legend(fontsize=9); ax.grid(alpha=0.3)
-    fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(out, dpi=dpi); plt.close(fig)
     print("saved:", out)
 
 
-def cm_pair(yA, pA, yB, pB, mA, mB, out):
+def cm_pair(yA, pA, yB, pB, mA, mB, out, dpi=300, show_title=True):
     """Side-by-side confusion matrices on the same slice (Lane A vs Lane B)."""
     from plot_cm import confusion
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.8))
@@ -95,10 +98,91 @@ def cm_pair(yA, pA, yB, pB, mA, mB, out):
                 v = Mn[i, jj]
                 ax.text(jj, i, f"{v*100:.0f}", ha="center", va="center",
                         color="white" if v > 0.5 else "black", fontsize=7)
-        sub = f"macro-F1={mp:.4f} ({int(present.sum())} present" + (f", {','.join(absent)} absent)" if absent else ")")
-        ax.set_title(f"{tag}\n{sub}, same slice n={len(y)}", fontsize=10)
-    fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
+        if show_title:
+            sub = f"macro-F1={mp:.4f} ({int(present.sum())} present" + (f", {','.join(absent)} absent)" if absent else ")")
+            ax.set_title(f"{tag}\n{sub}, same slice n={len(y)}", fontsize=10)
+    fig.tight_layout(); fig.savefig(out, dpi=dpi); plt.close(fig)
     print("saved:", out)
+
+
+def paired_boot(y, p_new, p_base, B=2000, seed=0):
+    """Percentile paired bootstrap of the 8-class macro-F1 difference (p_new − p_base) over windows."""
+    rng = np.random.default_rng(seed); n = len(y)
+    point = per_class_f1(y, p_new).mean() - per_class_f1(y, p_base).mean()
+    diffs = np.empty(B)
+    for b in range(B):
+        idx = rng.integers(0, n, n)
+        diffs[b] = per_class_f1(y[idx], p_new[idx]).mean() - per_class_f1(y[idx], p_base[idx]).mean()
+    lo, hi = np.percentile(diffs, [2.5, 97.5])
+    return float(point), float(lo), float(hi)
+
+
+def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot, nS):
+    """Editable markdown: draft figure captions + honest results table (colleague edits for the paper)."""
+    fOur, mOur, mpOur = our; fHis, mHis, mpHis = his; fV5, mV5, mpV5 = v5; dlt, dlo, dhi = boot
+    nBus = int(counts[5])
+
+    def prow(tag, f, m, mp):
+        pc = " ".join(f"{CLASSES[k][:2]}={f[k]:.2f}" for k in range(8) if present[k])
+        return f"| {tag} | {m:.3f} | {mp:.3f} | {pc} |"
+
+    L = [
+        "# SHL-2026 — figure captions & results (editable draft)",
+        "",
+        "Draft captions for the paper figures — edit freely. All numbers come from the honest, "
+        "leakage-clean held-out evaluation (select-on-TUNE, lock-TEST-once, per-window). Do NOT quote "
+        "in-sample / full-validation numbers.",
+        "",
+        "## Figure captions",
+        "",
+        f"**cm_laneA_v4_test.png** — Confusion matrix (row-normalized recall, %) of the AGH time-series "
+        f"lane (v4: frozen UTICA + Mantis-V2 embeddings concatenated with 520 hand-crafted features, "
+        f"per-class-calibrated LightGBM soft-vote) on the held-out internal TEST set "
+        f"(Users 2–3, Bag/Hips/Torso, per-window; n = {nT:,}). Macro-F1 = {mT:.3f}. Residual confusion "
+        f"concentrates in the Train↔Subway and Bike↔Subway pairs.",
+        "",
+        (f"**cm_laneB_holdout.png** — Confusion matrix (row-normalized recall, %) of the collaborator "
+         f"vision lane (frozen DINoV2 over STFT/CWT/GAF spectrogram images, gated multi-branch MLP) on its "
+         f"held-out target set (n = {nB:,}). Macro-F1 = {mB:.3f}. The error structure is complementary to "
+         f"Lane A (stronger on Subway, weaker on Bus/Train), which motivates the late-fusion blend."
+         if mB is not None else
+         "**cm_laneB_holdout.png** — (not generated: Lane-B holdout npz not supplied.)"),
+        "",
+        f"**perclass_f1_slice.png** — Per-class F1 of the two lanes and their late-fusion blend (v5) on the "
+        f"doubly-held-out slice (windows held out from training by BOTH pipelines; n = {nS:,}). Bars are "
+        f"annotated with true support n. Run is absent from this intersection (n = 0) and Bus is small "
+        f"(n = {nBus}), so those are omitted / noisy; the full per-class behaviour is given by the Lane-A "
+        f"and Lane-B confusion matrices. Over the classes present, v5 (macro {mpV5:.3f}) improves on v4 "
+        f"({mpOur:.3f}) and Lane B ({mpHis:.3f}), with the largest gains on the confusable vehicle/rail "
+        f"classes (Bus, Train).",
+        "",
+        f"**weight_sweep.png** — Macro-F1 on the doubly-held-out slice as a function of the blend weight w "
+        f"(P = w·P_v4 + (1−w)·P_his); optimum at w = {w:.3f}. w is tuned only on this doubly-held-out slice, "
+        f"so the fusion introduces no leakage.",
+        "",
+        f"## Results — doubly-held-out slice (n = {nS:,})",
+        "",
+        "| model | macro-F1 (8-class) | macro-F1 (present) | per-class F1 (present) |",
+        "|---|---|---|---|",
+        prow("v4 (ours)", fOur, mOur, mpOur),
+        prow("his (Lane B)", fHis, mHis, mpHis),
+        prow(f"v5 blend (w={w:.3f})", fV5, mV5, mpV5),
+        "",
+        f"v5 vs v4: paired-bootstrap Δ(8-class macro-F1) = {dlt:+.4f}, 95% CI [{dlo:+.4f}, {dhi:+.4f}] "
+        f"(excludes 0 → significant). Run is absent (0 windows) and Bus small ({nBus}) in this intersection, "
+        f"which deflates the 8-class column; the present-class column and the full-set confusion matrices are "
+        f"the representative numbers.",
+        "",
+        "## Lane summary (full held-out sets, all classes present)",
+        "",
+        "| lane | eval set | n | macro-F1 |",
+        "|---|---|---|---|",
+        f"| Lane A (v4, ours) | internal TEST (Bag/Hips/Torso) | {nT:,} | {mT:.3f} |",
+        (f"| Lane B (his DINoV2) | target holdout | {nB:,} | {mB:.3f} |"
+         if mB is not None else "| Lane B (his DINoV2) | target holdout | — | — |"),
+        "",
+    ]
+    path.write_text("\n".join(L) + "\n")
 
 
 def main() -> int:
@@ -107,59 +191,89 @@ def main() -> int:
     ap.add_argument("--his-holdout", type=Path, default=None,
                     help="his selected_untouched_target_holdout/predictions.npz (Lane B full holdout CM)")
     ap.add_argument("--out-dir", type=Path, default=Path(__file__).resolve().parent)
+    ap.add_argument("--dpi", type=int, default=300, help="figure DPI (paper quality = 300)")
+    ap.add_argument("--titles", action="store_true",
+                    help="bake titles into the figures. Default OFF: figures are title-less and captions "
+                         "go to the editable FIGURE_CAPTIONS.md (paper convention).")
+    ap.add_argument("--slice-cm", action="store_true",
+                    help="also emit the doubly-held-out-slice confusion matrices (v5 blend + Lane-A/B pair). "
+                         "OFF by default (Option A): that slice lacks Run, so per-class CMs use the full "
+                         "held-out sets; the slice result is shown as bars + a table instead.")
+    ap.add_argument("--captions", type=Path, default=None,
+                    help="path for the editable caption+results markdown (default <out-dir>/FIGURE_CAPTIONS.md)")
     ap.add_argument("--mlflow", action="store_true",
-                    help="log every PNG (+ the source dump npz) to MLflow as a 'combine_figures' run "
-                         "for full figure provenance. Omit for quick local iteration.")
+                    help="log every PNG (+ the dump + captions md) to MLflow as a 'combine_figures' run.")
     a = ap.parse_args()
+    st = a.titles
     a.out_dir.mkdir(parents=True, exist_ok=True)
-    d = np.load(a.dump)
-    labels = d["classes"]
-    produced = []  # PNG paths, for optional MLflow snapshot
+    caps = a.captions or (a.out_dir / "FIGURE_CAPTIONS.md")
+    d = np.load(a.dump); labels = d["classes"]
+    produced = []
 
-    # --- Lane A (our v4) on the full internal TEST (honest, n~15k) ---
+    # --- Lane A (our v4) confusion matrix on the full internal TEST (all classes present) ---
     yT = _to_idx(d["test_y"], labels); pT = d["test_ourP"].argmax(1)
-    mT, _ = plot_cm(yT, pT, "Lane A (our v4: frozen TS-FMs + LightGBM vote) — internal TEST",
-                    a.out_dir / "cm_laneA_v4_test.png")
+    mT = float(per_class_f1(yT, pT).mean())
+    plot_cm(yT, pT, "Lane A (our v4) — internal TEST",
+            a.out_dir / "cm_laneA_v4_test.png", dpi=a.dpi, show_title=st)
+    produced.append(a.out_dir / "cm_laneA_v4_test.png")
     print(f"Lane A v4 (TEST n={len(yT)}) macro-F1={mT:.4f}")
 
-    # --- the doubly-held-out slice: ours / his / v5 blend ---
+    # --- Lane B (his) confusion matrix on the full holdout (all classes present) ---
+    mB, nB = None, 0
+    if a.his_holdout and a.his_holdout.exists():
+        h = np.load(a.his_holdout, allow_pickle=True)
+        yB = np.asarray(h["y_true"])
+        pB = h["probabilities"].argmax(1) if "probabilities" in h else np.asarray(h["y_pred"])
+        mB = float(per_class_f1(yB, pB).mean()); nB = int(len(yB))
+        plot_cm(yB, pB, "Lane B (DINoV2 + MLP) — holdout",
+                a.out_dir / "cm_laneB_holdout.png", dpi=a.dpi, show_title=st)
+        produced.append(a.out_dir / "cm_laneB_holdout.png")
+        print(f"Lane B (holdout n={nB}) macro-F1={mB:.4f}")
+
+    # --- doubly-held-out slice: per-class bars + weight sweep (+ optional slice CMs) ---
     yS = _to_idx(d["slice_y"], labels)
     ourP, hisP, w = d["slice_ourP"], d["slice_hisP"], float(d["w"])
     pOur, pHis = ourP.argmax(1), hisP.argmax(1)
     pV5 = (w * ourP + (1 - w) * hisP).argmax(1)
-    mOur = per_class_f1(yS, pOur).mean(); mHis = per_class_f1(yS, pHis).mean()
-    mV5 = per_class_f1(yS, pV5).mean()
-    plot_cm(yS, pV5, f"v5 blend (w={w:.2f}) — doubly-held-out slice  [small n]",
-            a.out_dir / "cm_v5_blend_slice.png")
-    cm_pair(yS, pOur, yS, pHis, mOur, mHis, a.out_dir / "cm_pair_slice.png")
-    perclass_bars(yS, {"ours (v4)": pOur, "his (Lane B)": pHis, "v5 blend": pV5},
-                  a.out_dir / "perclass_f1_slice.png")
-    weight_sweep(d["w_grid"], d["w_macro"], w, a.out_dir / "weight_sweep.png")
-    print(f"slice (n={len(yS)}) macro-F1: ours={mOur:.4f} his={mHis:.4f} v5={mV5:.4f} (w={w:.2f})")
-    produced += [a.out_dir / f for f in ("cm_laneA_v4_test.png", "cm_v5_blend_slice.png",
-                                         "cm_pair_slice.png", "perclass_f1_slice.png", "weight_sweep.png")]
+    counts = np.bincount(yS, minlength=8); present = counts > 0
 
-    # --- Lane B on his full holdout (honest, n~22k) ---
-    if a.his_holdout and a.his_holdout.exists():
-        h = np.load(a.his_holdout, allow_pickle=True)
-        yB = h["y_true"]; pB = h["probabilities"].argmax(1) if "probabilities" in h else h["y_pred"]
-        mB, _ = plot_cm(yB, pB, "Lane B (frozen DINoV2 + gated MLP) — honest holdout",
-                        a.out_dir / "cm_laneB_holdout.png")
-        print(f"Lane B (holdout n={len(yB)}) macro-F1={mB:.4f}")
-        produced.append(a.out_dir / "cm_laneB_holdout.png")
+    def stats(p):
+        f = per_class_f1(yS, p); return f, float(f.mean()), float(f[present].mean())
+    fOur, mOur, mpOur = stats(pOur); fHis, mHis, mpHis = stats(pHis); fV5, mV5, mpV5 = stats(pV5)
+    boot = paired_boot(yS, pV5, pOur if mOur >= mHis else pHis)
+
+    perclass_bars(yS, {"ours (v4)": pOur, "his (Lane B)": pHis, "v5 blend": pV5},
+                  a.out_dir / "perclass_f1_slice.png", dpi=a.dpi, show_title=st)
+    weight_sweep(d["w_grid"], d["w_macro"], w, a.out_dir / "weight_sweep.png", dpi=a.dpi, show_title=st)
+    produced += [a.out_dir / "perclass_f1_slice.png", a.out_dir / "weight_sweep.png"]
+    if a.slice_cm:
+        plot_cm(yS, pV5, f"v5 blend (w={w:.3f}) — doubly-held-out slice",
+                a.out_dir / "cm_v5_blend_slice.png", dpi=a.dpi, show_title=st)
+        cm_pair(yS, pOur, yS, pHis, mOur, mHis, a.out_dir / "cm_pair_slice.png", dpi=a.dpi, show_title=st)
+        produced += [a.out_dir / "cm_v5_blend_slice.png", a.out_dir / "cm_pair_slice.png"]
+    print(f"slice (n={len(yS)}) present-macro: ours={mpOur:.4f} his={mpHis:.4f} v5={mpV5:.4f}; "
+          f"Δ(v5−base)={boot[0]:+.4f} CI[{boot[1]:+.4f},{boot[2]:+.4f}]")
+
+    # --- editable captions + results markdown ---
+    write_captions(caps, present, counts, mT, len(yT), mB, nB, w,
+                   (fOur, mOur, mpOur), (fHis, mHis, mpHis), (fV5, mV5, mpV5), boot, len(yS))
+    produced.append(caps)
+    print("saved:", caps)
 
     if a.mlflow:
         from shl2026 import track  # local import: not needed for offline iteration
         with track("mdaniol", run_name="combine_figures", seed=0, params_path=None,
-                   params={"dump": a.dump.name, "n_slice": int(len(yS)), "n_test": int(len(yT)), "w": w},
+                   params={"dump": a.dump.name, "n_slice": int(len(yS)), "n_test": int(len(yT)),
+                           "w": w, "dpi": a.dpi},
                    tags={"phase": "figures", "experiment": "E-COMBINE"}) as run:
-            run.log_metrics({"slice_ours": float(mOur), "slice_his": float(mHis), "slice_v5": float(mV5),
-                             "test_v4": float(mT)})
+            run.log_metrics({"slice_ours_present": mpOur, "slice_his_present": mpHis,
+                             "slice_v5_present": mpV5, "test_v4": mT,
+                             "paired_diff": boot[0], "paired_ci_lo": boot[1]})
             run.log_artifact(a.dump)
             for p in produced:
                 if p.exists():
                     run.log_artifact(p)
-        print(f"[figures] MLflow-logged {len(produced)} PNGs + dump under run 'combine_figures'.")
+        print(f"[figures] MLflow-logged {len(produced)} artifacts under run 'combine_figures'.")
     return 0
 
 

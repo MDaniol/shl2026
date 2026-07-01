@@ -19,7 +19,7 @@ def confusion(y, p, K=8):
     for t,pr in zip(y,p): M[t,pr]+=1
     return M
 
-def plot_cm(y, p, title, out, K=8):
+def plot_cm(y, p, title, out, K=8, dpi=300, show_title=True):
     y=np.asarray(y); p=np.asarray(p)
     M = confusion(y,p,K); counts = M.sum(1)
     Mn = M/np.clip(counts[:,None],1,None)
@@ -43,14 +43,15 @@ def plot_cm(y, p, title, out, K=8):
             v=Mn[i,j]
             ax.text(j,i,f"{v*100:.0f}",ha="center",va="center",
                     color="white" if v>0.5 else "black",fontsize=8)
-    if absent:
-        t=(f"{title}\nmacro-F1={macro_present:.4f} over {int(present.sum())} present classes "
-           f"({', '.join(absent)} absent) · 8-class {macro:.4f}  (n={len(y)})")
-    else:
-        t=f"{title}\nmacro-F1={macro:.4f}  (n={len(y)})"
-    ax.set_title(t,fontsize=10)
+    if show_title:
+        if absent:
+            t=(f"{title}\nmacro-F1={macro_present:.4f} over {int(present.sum())} present classes "
+               f"({', '.join(absent)} absent) · 8-class {macro:.4f}  (n={len(y)})")
+        else:
+            t=f"{title}\nmacro-F1={macro:.4f}  (n={len(y)})"
+        ax.set_title(t,fontsize=10)
     cb=fig.colorbar(im,ax=ax,fraction=0.046,pad=0.04); cb.set_label("row-normalized (recall)")
-    fig.tight_layout(); fig.savefig(out,dpi=150); plt.close(fig)
+    fig.tight_layout(); fig.savefig(out,dpi=dpi); plt.close(fig)
     return macro, f1
 
 if __name__=="__main__":
