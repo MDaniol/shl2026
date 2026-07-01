@@ -34,15 +34,26 @@ def _to_idx(y, labels):
 def perclass_bars(y_idx, preds: dict, out, title="Per-class F1 on the doubly-held-out slice"):
     K = len(CLASSES)
     names = list(preds.keys())
+    counts = np.bincount(y_idx, minlength=K)          # true support per class in this slice
+    present = counts > 0
     f1s = {n: per_class_f1(y_idx, p, K) for n, p in preds.items()}
     x = np.arange(K); wbar = 0.8 / len(names)
-    fig, ax = plt.subplots(figsize=(9.5, 4.6))
+    fig, ax = plt.subplots(figsize=(10, 4.8))
     colors = {"ours (v4)": "#3b82f6", "his (Lane B)": "#22c55e", "v5 blend": "#a855f7"}
     for i, n in enumerate(names):
-        ax.bar(x + i * wbar, f1s[n], wbar, label=f"{n} (macro {f1s[n].mean():.3f})",
-               color=colors.get(n, None))
-    ax.set_xticks(x + wbar * (len(names) - 1) / 2); ax.set_xticklabels(CLASSES, rotation=45, ha="right")
-    ax.set_ylabel("F1"); ax.set_ylim(0, 1.02); ax.set_title(title)
+        f = f1s[n]
+        # legend reports both the 8-class macro and the macro over classes actually present
+        lbl = f"{n} (macro {f.mean():.3f} · present {f[present].mean():.3f})"
+        ax.bar(x + i * wbar, f, wbar, label=lbl, color=colors.get(n, None))
+    # flag absent classes so the empty gap reads as "no data", not "F1 = 0"
+    for k in range(K):
+        if not present[k]:
+            ax.text(x[k] + wbar * (len(names) - 1) / 2, 0.02, "absent\n(n=0)", ha="center",
+                    va="bottom", fontsize=8, color="#999", style="italic")
+    ax.set_xticks(x + wbar * (len(names) - 1) / 2)
+    ax.set_xticklabels([f"{c}\n(n={int(counts[k])})" for k, c in enumerate(CLASSES)], fontsize=9)
+    ax.set_ylabel("F1"); ax.set_ylim(0, 1.02)
+    ax.set_title(title + "   —   n under each class = true support (small n ⇒ noisy)")
     ax.legend(loc="lower right", fontsize=9); ax.grid(axis="y", alpha=0.3)
     fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
     print("saved:", out)
@@ -64,19 +75,28 @@ def weight_sweep(wg, wm, w_star, out):
 def cm_pair(yA, pA, yB, pB, mA, mB, out):
     """Side-by-side confusion matrices on the same slice (Lane A vs Lane B)."""
     from plot_cm import confusion
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5.6))
-    for ax, (y, p, tag, m) in zip(axes, [(yA, pA, "Lane A — our v4", mA), (yB, pB, "Lane B — DINoV2+MLP", mB)]):
-        M = confusion(y, p); Mn = M / np.clip(M.sum(1, keepdims=True), 1, None)
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.8))
+    for ax, (y, p, tag) in zip(axes, [(yA, pA, "Lane A — our v4"), (yB, pB, "Lane B — DINoV2+MLP")]):
+        M = confusion(y, p); counts = M.sum(1); Mn = M / np.clip(counts[:, None], 1, None)
+        f1 = per_class_f1(y, p); present = counts > 0
+        mp = float(f1[present].mean()) if present.any() else 0.0
+        absent = [CLASSES[i] for i in range(8) if not present[i]]
         im = ax.imshow(Mn, cmap="Blues", vmin=0, vmax=1)
         ax.set_xticks(range(8)); ax.set_yticks(range(8))
-        ax.set_xticklabels(CLASSES, rotation=45, ha="right"); ax.set_yticklabels(CLASSES)
+        ax.set_xticklabels(CLASSES, rotation=45, ha="right")
+        ax.set_yticklabels([f"{c} (n={int(n)})" if n > 0 else f"{c} (absent)" for c, n in zip(CLASSES, counts)],
+                           fontsize=8)
         ax.set_xlabel("Predicted"); ax.set_ylabel("True")
         for i in range(8):
+            if counts[i] == 0:
+                ax.text(3.5, i, "absent", ha="center", va="center", color="#999", fontsize=7, style="italic")
+                continue
             for jj in range(8):
                 v = Mn[i, jj]
                 ax.text(jj, i, f"{v*100:.0f}", ha="center", va="center",
                         color="white" if v > 0.5 else "black", fontsize=7)
-        ax.set_title(f"{tag}\nmacro-F1={m:.4f} (same slice, n={len(y)})", fontsize=10)
+        sub = f"macro-F1={mp:.4f} ({int(present.sum())} present" + (f", {','.join(absent)} absent)" if absent else ")")
+        ax.set_title(f"{tag}\n{sub}, same slice n={len(y)}", fontsize=10)
     fig.tight_layout(); fig.savefig(out, dpi=150); plt.close(fig)
     print("saved:", out)
 
