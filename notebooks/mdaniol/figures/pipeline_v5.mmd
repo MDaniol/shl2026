@@ -1,0 +1,45 @@
+%%{init: {'flowchart': {'htmlLabels': true, 'curve': 'basis'}, 'themeVariables': {'fontSize': '15px'}}}%%
+flowchart TB
+    RAW["<b>Raw IMU window</b><br/>9 channels (acc, gyr, mag)<br/>100 Hz &middot; 5 s = 500 samples"]
+
+    subgraph LA["Lane A &mdash; time-series lane (v4)"]
+    direction TB
+        FMA["<b>Frozen time-series FMs</b><br/>UTICA &middot; Mantis-V2<br/>(no fine-tuning)"]
+        HC["<b>520 hand-crafted features</b><br/>spectral &middot; magnetometer<br/>jerk &middot; statistics"]
+        CATA["concat: embedding &oplus; 520 features"]
+        LGBM["<b>LightGBM head</b> (one per FM)<br/>+ per-class calibration"]
+        VOTEA["weighted soft-vote (UTICA + Mantis-V2)<br/>+ additive-logit decision"]
+        PA["<b>P_LaneA</b><br/>8-class probabilities"]
+        FMA --> CATA
+        HC --> CATA
+        CATA --> LGBM --> VOTEA --> PA
+    end
+
+    subgraph LB["Lane B &mdash; vision-based lane"]
+    direction TB
+        IMG["<b>6 spectrogram images</b><br/>STFT &middot; CWT &middot; GAF<br/>(signal + 2nd time-gradient)"]
+        DINO["<b>Frozen DINoV2</b> (no fine-tuning)<br/>CLS &oplus; patch-mean &rarr; 1536-d &times; 6"]
+        MLP["<b>Gated multi-branch MLP</b><br/>learns per-window branch weights"]
+        PB["<b>P_LaneB</b><br/>8-class probabilities"]
+        IMG --> DINO --> MLP --> PB
+    end
+
+    RAW --> FMA
+    RAW --> HC
+    RAW --> IMG
+
+    PA --> BLEND{"<b>Late fusion (v5)</b><br/>P = w &middot; P_LaneA + (1 &minus; w) &middot; P_LaneB<br/>w = 0.575 &nbsp;(tuned on doubly-held-out slice)"}
+    PB --> BLEND
+    BLEND --> ARG["argmax over 8 classes"]
+    ARG --> OUT["<b>v5 prediction</b><br/>Still &middot; Walk &middot; Run &middot; Bike<br/>Car &middot; Bus &middot; Train &middot; Subway"]
+
+    classDef laneA fill:#eef4ff,stroke:#3b6fd4,stroke-width:1px;
+    classDef laneB fill:#eefaf0,stroke:#2f9e57,stroke-width:1px;
+    classDef fuse fill:#f6effc,stroke:#8a4fbf,stroke-width:1.5px;
+    classDef io fill:#f3f4f6,stroke:#6b7280,stroke-width:1px;
+    class FMA,HC,CATA,LGBM,VOTEA,PA laneA;
+    class IMG,DINO,MLP,PB laneB;
+    class BLEND,ARG,OUT fuse;
+    class RAW io;
+    style LA fill:#f7faff,stroke:#3b6fd4,stroke-width:1.5px;
+    style LB fill:#f6fdf8,stroke:#2f9e57,stroke-width:1.5px;
