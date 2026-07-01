@@ -6,7 +6,7 @@ Produces, into --out-dir:
   cm_v5_blend_slice.png    v5 blend confusion matrix on the doubly-held-out slice (n~2.3k, honest; small-n)
   cm_pair_slice.png        Lane A vs Lane B on the SAME slice (side-by-side decorrelation figure)
   cm_laneB_holdout.png     Lane B (his DINoV2+MLP) on his full holdout (n~22k, honest)  [needs --his-holdout]
-  perclass_f1_slice.png    grouped per-class F1: ours vs his vs v5 (slice) — shows WHERE fusion wins
+  perclass_f1_slice.png    grouped per-class F1: Lane A vs Lane B vs v5 (slice) — shows WHERE fusion wins
   weight_sweep.png         macro-F1 vs blend weight w, optimum marked
 
 All inputs are labelled held-out data — no hidden-test (unlabelled) and no inflated full-validation.
@@ -67,7 +67,7 @@ def weight_sweep(wg, wm, w_star, out, dpi=300, show_title=True):
     ax.axvline(w_star, ls="--", color="#666", label=f"w* = {w_star:.3f}")
     j = int(np.argmax(wm))
     ax.scatter([wg[j]], [wm[j]], color="#ef4444", zorder=5, label=f"max macro-F1 = {wm[j]:.4f}")
-    ax.set_xlabel("blend weight w   (P = w·ours + (1−w)·his)"); ax.set_ylabel("macro-F1 (slice)")
+    ax.set_xlabel("blend weight w   (P = w·P_LaneA + (1−w)·P_LaneB)"); ax.set_ylabel("macro-F1 (slice)")
     if show_title:
         ax.set_title("Blend-weight sweep on the doubly-held-out slice")
     ax.legend(fontsize=9); ax.grid(alpha=0.3)
@@ -157,7 +157,8 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         f"classes (Bus, Train).",
         "",
         f"**weight_sweep.png** — Macro-F1 on the doubly-held-out slice as a function of the blend weight w "
-        f"(P = w·P_v4 + (1−w)·P_his); optimum at w = {w:.3f}. w is tuned only on this doubly-held-out slice, "
+        f"(P = w·P_LaneA + (1−w)·P_LaneB); optimum at w = {w:.3f}. w is tuned only on this doubly-held-out "
+        f"slice, so the fusion introduces no leakage."
         f"so the fusion introduces no leakage.",
         "",
         f"## Results — doubly-held-out slice (n = {nS:,})",
