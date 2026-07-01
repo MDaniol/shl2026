@@ -50,7 +50,7 @@ python "$M/combine_pdusza.py" --embs "$EMBS" --split "$SPLIT" \
 echo "[$(date)] STEP 2/2 rendering figures -> $FIGDIR"
 python "$FIGDIR/make_paper_figures.py" --dump "$DUMP" \
     $( [ -f "$HIS_HOLDOUT" ] && echo "--his-holdout $HIS_HOLDOUT" ) \
-    --out-dir "$FIGDIR" || { echo "figure rendering failed" >&2; exit 1; }
+    --out-dir "$FIGDIR" --mlflow || { echo "figure rendering failed" >&2; exit 1; }
 
 echo "[$(date)] done — PNGs + $DUMP in $FIGDIR:"
 ls -la "$FIGDIR"/*.png

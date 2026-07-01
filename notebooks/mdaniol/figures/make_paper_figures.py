@@ -87,10 +87,14 @@ def main() -> int:
     ap.add_argument("--his-holdout", type=Path, default=None,
                     help="his selected_untouched_target_holdout/predictions.npz (Lane B full holdout CM)")
     ap.add_argument("--out-dir", type=Path, default=Path(__file__).resolve().parent)
+    ap.add_argument("--mlflow", action="store_true",
+                    help="log every PNG (+ the source dump npz) to MLflow as a 'combine_figures' run "
+                         "for full figure provenance. Omit for quick local iteration.")
     a = ap.parse_args()
     a.out_dir.mkdir(parents=True, exist_ok=True)
     d = np.load(a.dump)
     labels = d["classes"]
+    produced = []  # PNG paths, for optional MLflow snapshot
 
     # --- Lane A (our v4) on the full internal TEST (honest, n~15k) ---
     yT = _to_idx(d["test_y"], labels); pT = d["test_ourP"].argmax(1)
@@ -112,6 +116,8 @@ def main() -> int:
                   a.out_dir / "perclass_f1_slice.png")
     weight_sweep(d["w_grid"], d["w_macro"], w, a.out_dir / "weight_sweep.png")
     print(f"slice (n={len(yS)}) macro-F1: ours={mOur:.4f} his={mHis:.4f} v5={mV5:.4f} (w={w:.2f})")
+    produced += [a.out_dir / f for f in ("cm_laneA_v4_test.png", "cm_v5_blend_slice.png",
+                                         "cm_pair_slice.png", "perclass_f1_slice.png", "weight_sweep.png")]
 
     # --- Lane B on his full holdout (honest, n~22k) ---
     if a.his_holdout and a.his_holdout.exists():
@@ -120,6 +126,20 @@ def main() -> int:
         mB, _ = plot_cm(yB, pB, "Lane B (frozen DINoV2 + gated MLP) — honest holdout",
                         a.out_dir / "cm_laneB_holdout.png")
         print(f"Lane B (holdout n={len(yB)}) macro-F1={mB:.4f}")
+        produced.append(a.out_dir / "cm_laneB_holdout.png")
+
+    if a.mlflow:
+        from shl2026 import track  # local import: not needed for offline iteration
+        with track("mdaniol", run_name="combine_figures", seed=0, params_path=None,
+                   params={"dump": a.dump.name, "n_slice": int(len(yS)), "n_test": int(len(yT)), "w": w},
+                   tags={"phase": "figures", "experiment": "E-COMBINE"}) as run:
+            run.log_metrics({"slice_ours": float(mOur), "slice_his": float(mHis), "slice_v5": float(mV5),
+                             "test_v4": float(mT)})
+            run.log_artifact(a.dump)
+            for p in produced:
+                if p.exists():
+                    run.log_artifact(p)
+        print(f"[figures] MLflow-logged {len(produced)} PNGs + dump under run 'combine_figures'.")
     return 0
 
 
