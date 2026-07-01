@@ -133,12 +133,27 @@ def write_captions(path, present, counts, mT, nT, mB, nB, w, our, his, v5, boot,
         pc = " ".join(f"{CLASSES[k][:2]}={f[k]:.2f}" for k in range(8) if present[k])
         return f"| {tag} | {mp:.3f} | {pc} |"
 
+    mBs = f"{mB:.3f}" if mB is not None else "n/a"
+    nBs = f"{nB:,}" if mB is not None else "n/a"
     L = [
         "# SHL-2026 — figure captions & results (editable draft)",
         "",
-        "Draft captions for the paper figures — edit freely. All numbers come from the honest, "
-        "leakage-clean held-out evaluation (select-on-TUNE, lock-TEST-once, per-window). Do NOT quote "
-        "in-sample / full-validation numbers.",
+        "Two frozen-foundation-model lanes are combined by late fusion: a time-series lane (Lane A) and a "
+        "vision-based lane (Lane B); v5 is their probability-level blend.",
+        "",
+        "**Data split and evaluation sets.** The challenge provides labelled data from User 1 (training) and "
+        "Users 2–3 (validation), plus an unlabelled, frame-shuffled hidden test from the same Users 2–3 "
+        "(Bag/Hips/Torso only). For honest, leakage-free evaluation each lane is scored only on data it never "
+        "trained on, using a user-independent temporal split with an embargo (select on a TUNE partition, lock "
+        "the TEST partition once; per-window scoring). Because the two lanes were developed independently they "
+        "define different held-out sets, so the figures report on three distinct — and NOT directly comparable — "
+        f"sets: (i) Lane A on its internal TEST (n = {nT:,}; all 8 classes), macro-F1 {mT:.3f}; (ii) Lane B on "
+        f"its target holdout (n = {nBs}; all 8 classes), macro-F1 {mBs}; and (iii) the fused model v5 on the "
+        f"doubly-held-out slice — the intersection of (i) and (ii), i.e. windows held out by BOTH lanes "
+        f"(n = {nS:,}) — the only leakage-free set on which the blend can be measured. That intersection "
+        "contains no Run windows and only 33 Bus windows, so the per-lane confusion matrices (Figs 1–2), not "
+        "the slice, are the authoritative per-class evidence; the slice is used only to select the blend weight "
+        "and to test the fusion gain. Do NOT quote in-sample or full-validation numbers.",
         "",
         "## Figure captions",
         "",
