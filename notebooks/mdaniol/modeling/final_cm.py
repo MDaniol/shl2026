@@ -43,6 +43,9 @@ def main() -> int:
     ap.add_argument("--his-holdout", type=Path, required=True,
                     help="his selected_untouched_target_holdout/predictions.npz")
     ap.add_argument("--w", type=float, default=0.575, help="pre-locked blend weight P=w*LaneA+(1-w)*LaneB")
+    ap.add_argument("--embargo", type=int, default=100,
+                    help="temporal embargo (windows, per location) around the eval set to exclude from "
+                         "Lane-A training — prevents adjacent-window leakage (0 = none).")
     ap.add_argument("--out-dir", type=Path, default=root / "notebooks/mdaniol" / "figures")
     ap.add_argument("--dpi", type=int, default=300)
     ap.add_argument("--include-hand", action="store_true", help="keep Hand windows (default: BHT only)")
@@ -80,10 +83,23 @@ def main() -> int:
           flush=True)
 
     # --- re-fit Lane A holding out ALL his-holdout windows; predict on them ---
-    sm = np.zeros(len(yva), bool); sm[obs_idx] = True          # eval / held-out (exclude from train)
-    tm = (assign == 1) & ~sm                                   # tune = original TUNE minus his holdout
-    fm = ~sm & ~tm                                             # fit = the rest of validation
-    print(f"[final_cm] Lane-A re-fit split: fit={fm.sum()} tune={tm.sum()} test(sm)={sm.sum()}", flush=True)
+    sm = np.zeros(len(yva), bool); sm[obs_idx] = True          # eval / held-out (predict on these)
+    # temporal embargo: drop from TRAIN any window within ±E rows (same location) of an eval window, to
+    # prevent adjacent-window leakage (mirrors the honest split's embargo). Eval set (sm) is unchanged.
+    blocked = sm.copy()
+    if a.embargo > 0:
+        for loc in range(len(LOCATIONS)):
+            held = np.zeros(nv, bool)
+            held[obs_idx[(obs_idx // nv) == loc] % nv] = True
+            dil = held.copy()
+            for s in range(1, a.embargo + 1):
+                dil[s:] |= held[:-s]; dil[:-s] |= held[s:]
+            blocked[loc * nv:(loc + 1) * nv] |= dil
+    tm = (assign == 1) & ~blocked                              # tune = original TUNE minus eval+embargo
+    fm = ~blocked & ~tm                                        # fit = the rest of validation
+    print(f"[final_cm] embargo={a.embargo}: eval(sm)={int(sm.sum())} "
+          f"+ embargo neighbors={int(blocked.sum() - sm.sum())} excluded from train; "
+          f"Lane-A re-fit split: fit={int(fm.sum())} tune={int(tm.sum())}", flush=True)
     embs = [e.strip() for e in a.embs.split(",") if e.strip()]
     Ptu_list, Pte_list = [], []
     for e in embs:
@@ -147,7 +163,7 @@ def main() -> int:
         f"# Final all-class v5 confusion matrix — shared held-out set (n={len(y)}, all 8 classes)",
         "",
         "Shared set = collaborator target_holdout (clean for Lane B) with Lane A re-fit to hold it out "
-        f"(clean for Lane A). w={W} pre-locked. BHT_only={not a.include_hand}, "
+        f"(clean for Lane A, embargo={a.embargo}). w={W} pre-locked. BHT_only={not a.include_hand}, "
         f"w-tuning windows excluded={not a.include_wtune}.",
         "",
         "| model | macro-F1 (8-class) | per-class F1 |", "|---|---|---|",
@@ -161,7 +177,7 @@ def main() -> int:
     if a.mlflow:
         from shl2026 import track
         with track("mdaniol", run_name="final_cm_v5", seed=0, params_path=None,
-                   params={"embs": ",".join(embs), "w": W, "split": a.split.stem,
+                   params={"embs": ",".join(embs), "w": W, "split": a.split.stem, "embargo": a.embargo,
                            "bht_only": not a.include_hand, "wtune_excluded": not a.include_wtune,
                            "protocol": "shared held-out = his target_holdout; Lane A re-fit to exclude it"},
                    tags={"phase": "final_cm", "experiment": "E-COMBINE"}) as run:
